@@ -1,0 +1,37 @@
+name: sats_app
+description: "Open Cash Association's Sats App -- An easy-to-use wallet for Bitcoin e-cash wallet."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cdk_flutter:
+    git:
+      url: https://github.com/davidcaseria/cdk_flutter.git
+  animated_digit: ^3.2.3
+  app_links: ^6.4.0
+  bloc: ^9.0.0
+  flutter_bloc: ^9.1.1
+  flutter_secure_storage: ^9.2.4
+  flutter_sticky_header: ^0.8.0
+  intl: ^0.20.2
+  local_auth: ^2.3.0
+  local_session_timeout: ^3.2.0
+  mobile_scanner: ^7.0.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  share_plus: ^11.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
