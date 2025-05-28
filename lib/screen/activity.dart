@@ -1,4 +1,5 @@
 import 'package:cdk_flutter/cdk_flutter.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
@@ -46,12 +47,110 @@ class _TransactionsListView extends StatelessWidget {
           final icon = (transaction.direction == TransactionDirection.incoming)
               ? Icon(Icons.arrow_downward, color: Colors.green)
               : Icon(Icons.arrow_upward, color: Colors.red);
-          return ListTile(
-            leading: CircleAvatar(child: icon),
-            title: Text((transaction.direction == TransactionDirection.incoming) ? 'Received' : 'Sent'),
+
+          Widget tile = ListTile(
+            leading: Stack(
+              children: [
+                CircleAvatar(child: icon),
+                if (transaction.status == TransactionStatus.pending)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Icon(Icons.hourglass_top, size: 16, color: (transaction.direction == TransactionDirection.incoming) ? Colors.green : Colors.red),
+                  ),
+              ],
+            ),
+            title: Text(transaction.memo ?? ((transaction.direction == TransactionDirection.incoming) ? 'Received' : 'Sent')),
             subtitle: Text(_humanizeTimestamp(transaction.timestamp)),
             trailing: Text('${transaction.amount.toString()} sat', style: Theme.of(context).textTheme.bodyMedium),
           );
+
+          if (transaction.status == TransactionStatus.pending && transaction.direction == TransactionDirection.outgoing) {
+            tile = Dismissible(
+              key: ValueKey(transaction.id),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                color: Colors.red,
+                alignment: Alignment.centerLeft,
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Icon(Icons.undo, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Revert', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              confirmDismiss: (direction) async {
+                const dialogTitle = 'Revert Transaction';
+                const dialogContent = 'Are you sure you want to revert this transaction?';
+                final cancelText = Text('Cancel');
+                final revertText = Text('Revert');
+
+                final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+                if (isIOS) {
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (context) => CupertinoAlertDialog(
+                          title: Text(dialogTitle),
+                          content: Text(dialogContent),
+                          actions: [
+                            CupertinoDialogAction(onPressed: () => Navigator.of(context).pop(false), child: cancelText),
+                            CupertinoDialogAction(isDestructiveAction: true, onPressed: () => Navigator.of(context).pop(true), child: revertText),
+                          ],
+                        ),
+                      ) ??
+                      false;
+                } else {
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text(dialogTitle),
+                          content: Text(dialogContent),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(context).pop(false), child: cancelText),
+                            TextButton(onPressed: () => Navigator.of(context).pop(true), child: revertText),
+                          ],
+                        ),
+                      ) ??
+                      false;
+                }
+              },
+              onDismissed: (_) async {
+                final cubit = context.read<_ActivityCubit>();
+                final success = await cubit.revertTransaction(transaction);
+                if (!success) {
+                  final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+                  final dialogTitle = 'Error';
+                  final dialogContent = 'Failed to revert transaction. Please try again later.';
+                  final cancelText = Text('OK');
+                  if (isIOS) {
+                    await showDialog(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: Text(dialogTitle),
+                        content: Text(dialogContent),
+                        actions: [CupertinoDialogAction(onPressed: () => Navigator.of(context).pop(), child: cancelText)],
+                      ),
+                    );
+                  } else {
+                    await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Error'),
+                        content: Text('Failed to revert transaction.'),
+                        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('OK'))],
+                      ),
+                    );
+                  }
+                }
+                cubit.fetchData();
+              },
+              child: tile,
+            );
+          }
+
+          return tile;
         }, childCount: transactions.length),
       ),
     );
@@ -89,9 +188,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
     }
   }
 
-  Future<bool> reclaimTransaction(Transaction transaction) async {
-    return true;
-  }
+  Future<bool> revertTransaction(Transaction transaction) => wallet.revertTransaction(transactionId: transaction.id);
 }
 
 class _ActivityState {
