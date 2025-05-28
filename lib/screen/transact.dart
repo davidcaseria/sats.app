@@ -104,7 +104,7 @@ class _BackspaceButton extends StatelessWidget {
           onTap: () => context.read<_TransactCubit>().backspacePressed(),
           child: Container(
             alignment: Alignment.center,
-            child: Icon(Icons.backspace, size: 24.0, color: Theme.of(context).iconTheme.color),
+            child: Icon(Icons.backspace, size: 24, color: Theme.of(context).iconTheme.color),
           ),
         ),
       ),
@@ -193,6 +193,32 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _ActionSheet extends StatelessWidget {
+  Widget _buildContent(BuildContext context, _TransactState state) {
+    if (state.actionState == null) {
+      return Column(
+        children: [
+          Padding(padding: const EdgeInsets.all(24), child: _ActionSheetHeader()),
+          Expanded(child: (state.isPayAction()) ? _ActionSheetPayConfirmation() : _ActionSheetPaymentRequest()),
+        ],
+      );
+    } else {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            (state.actionState == _ActionState.inProgress)
+                ? CircularProgressIndicator()
+                : (state.actionState == _ActionState.success)
+                ? Icon(Icons.check_circle, color: Colors.greenAccent, size: 48)
+                : Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 48),
+            SizedBox(height: 16),
+            if (state.actionMsg != null) Text(state.actionMsg!, style: Theme.of(context).textTheme.headlineSmall),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -200,42 +226,15 @@ class _ActionSheet extends StatelessWidget {
         FocusScope.of(context).unfocus(); // Dismiss keyboard when tapping outside
       },
       child: BlocBuilder<_TransactCubit, _TransactState>(
-        builder: (context, state) => AnimatedContainer(
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          height: MediaQuery.of(context).size.height * ((state.actionState == null) ? 0.75 : 0.25),
-          decoration: BoxDecoration(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          child: (state.actionState == null)
-              ? Column(
-                  children: [
-                    Padding(padding: const EdgeInsets.all(24), child: _ActionSheetHeader()),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: Duration(milliseconds: 300),
-                        child: BlocBuilder<_TransactCubit, _TransactState>(
-                          builder: (context, state) {
-                            return _ActionSheetConfirmation(isPayAction: state.action == _TransactAction.pay);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      (state.actionState == _ActionState.inProgress)
-                          ? CircularProgressIndicator()
-                          : (state.actionState == _ActionState.success)
-                          ? Icon(Icons.check_circle, color: Colors.greenAccent, size: 48)
-                          : Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 48),
-                      SizedBox(height: 16),
-                      if (state.actionMsg != null) Text(state.actionMsg!, style: Theme.of(context).textTheme.headlineSmall),
-                    ],
-                  ),
-                ),
-        ),
+        builder: (context, state) {
+          return AnimatedContainer(
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            height: MediaQuery.of(context).size.height * ((state.actionState == null) ? 0.75 : 0.25),
+            decoration: BoxDecoration(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            child: _buildContent(context, state),
+          );
+        },
       ),
     );
   }
@@ -271,24 +270,14 @@ class _ActionSheetHeader extends StatelessWidget {
   }
 }
 
-class _ActionSheetConfirmation extends StatelessWidget {
-  final bool isPayAction;
-
-  const _ActionSheetConfirmation({required this.isPayAction});
-
+class _ActionSheetPayConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isPayAction) _ActionSheetFeeInfo(),
-          _ActionSheetMemoField(),
-          if (isPayAction) _ActionSheetMemoCheckbox(),
-          Spacer(),
-          _ActionSheetButton(),
-        ],
+        children: [_ActionSheetFeeInfo(), _ActionSheetMemoField(), _ActionSheetMemoCheckbox(), Spacer(), _ActionSheetButton()],
       ),
     );
   }
@@ -345,6 +334,25 @@ class _ActionSheetMemoCheckbox extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ActionSheetPaymentRequest extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Share this payment request with the recipient:', style: Theme.of(context).textTheme.bodyMedium),
+          SizedBox(height: 16),
+          // _ActionSheetPaymentRequestInfo(),
+          Spacer(),
+          _ActionSheetButton(),
+        ],
+      ),
     );
   }
 }
@@ -473,7 +481,7 @@ class _TransactCubit extends Cubit<_TransactState> {
       return;
     }
     if (state.paymentRequest != null) {
-      await wallet.payRequest(request: state.paymentRequest!, send: state.preparedSend!, memo: state.memo ?? memo, includeMemo: state.isMemoViewable);
+      await wallet.payRequest(send: state.preparedSend!, memo: state.memo ?? memo, includeMemo: state.isMemoViewable);
       emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Transaction sent!').clearTransaction());
     } else {
       final token = await wallet.send(send: state.preparedSend!, memo: state.memo ?? memo, includeMemo: state.isMemoViewable);

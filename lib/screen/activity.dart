@@ -88,6 +88,10 @@ class _ActivityCubit extends Cubit<_ActivityState> {
       emit(state.copyWith(isLoading: false));
     }
   }
+
+  Future<bool> reclaimTransaction(Transaction transaction) async {
+    return true;
+  }
 }
 
 class _ActivityState {

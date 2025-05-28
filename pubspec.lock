@@ -86,7 +86,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: cf7411c1691f81d7ab100c8c966e10599f4079a4
+      resolved-ref: "1f3bd0f2cf33e374a5d7170e86c5da4a1e2c12a7"
       url: "https://github.com/davidcaseria/cdk_flutter.git"
     source: git
     version: "0.0.1"
@@ -518,6 +518,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.5"
+  qr:
+    dependency: transitive
+    description:
+      name: qr
+      sha256: "5a1d2586170e172b8a8c8470bbbffd5eb0cd38a66c0d77155ea138d3af3a4445"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.2"
+  qr_flutter:
+    dependency: "direct main"
+    description:
+      name: qr_flutter
+      sha256: "5095f0fc6e3f71d08adef8feccc8cea4f12eec18a2e31c2e8d82cb6019f4b097"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
   share_plus:
     dependency: "direct main"
     description:
