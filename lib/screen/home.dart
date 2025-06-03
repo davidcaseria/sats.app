@@ -15,8 +15,9 @@ import 'package:sats_app/storage.dart';
 class HomeScreen extends StatefulWidget {
   final WalletDatabase db;
   final Wallet? wallet;
+  final List<Mint>? mints;
 
-  const HomeScreen({super.key, required this.db, this.wallet});
+  const HomeScreen({super.key, required this.db, this.wallet, this.mints});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -25,11 +26,23 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   Wallet? _wallet;
+  List<Mint>? _mints;
+
+  Future<Wallet> _loadWallet(String mintUrl) async {
+    final storage = AppStorage();
+    final seed = await storage.getSeed();
+    if (seed == null) {
+      throw Exception('Seed not found');
+    }
+    storage.setMintUrl(mintUrl);
+    return Wallet.newFromHexSeed(mintUrl: mintUrl, unit: 'sat', seed: seed, localstore: widget.db);
+  }
 
   @override
   void initState() {
     super.initState();
     _wallet = widget.wallet;
+    _mints = widget.mints;
   }
 
   Widget get _page {
@@ -48,14 +61,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_wallet == null) {
       return OnboardingScreen(
         onJoinMint: (mintUrl) async {
-          final storage = AppStorage();
-          final seed = await storage.getSeed();
-          if (seed == null) {
-            throw Exception('Seed not found');
-          }
-          await storage.setMintUrl(mintUrl);
+          final wallet = await _loadWallet(mintUrl);
           setState(() {
-            _wallet = Wallet.newFromHexSeed(mintUrl: mintUrl, unit: 'sat', seed: seed, localstore: widget.db);
+            _wallet = wallet;
           });
         },
       );
@@ -66,37 +74,50 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         body: _page,
         appBar: AppBar(
-          leading: IconButton(icon: Icon(Icons.menu), onPressed: () {}),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          leading: _MenuButton(),
+          title: _AppBarTitle(wallet: _wallet!),
+          actions: [IconButton(icon: Icon(Icons.settings), onPressed: () {})],
+        ),
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
             children: [
-              WalletBalanceBuilder(
-                builder: (context, balance) {
-                  if (!balance.hasData) {
-                    return CircularProgressIndicator();
-                  }
-                  return AnimatedDigitWidget(
-                    value: balance.data?.toInt(),
-                    suffix: ' sat',
-                    enableSeparator: true,
-                    textStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                  );
-                },
+              DrawerHeader(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
+                margin: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Switch Wallet', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+                    SizedBox(height: 8),
+                    Text(_wallet!.mintUrl, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+                  ],
+                ),
               ),
-              IconButton(
-                icon: Icon(Icons.add_circle_outlined),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    enableDrag: false,
-                    builder: (context) => _DepositSheet(wallet: _wallet!),
-                  );
-                },
-              ),
+              ...(_mints ?? []).isEmpty
+                  ? [
+                      ListTile(
+                        title: Text('No Wallets Found'),
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ]
+                  : _mints!.map((mint) {
+                      return ListTile(
+                        title: Text(mint.url),
+                        subtitle: Text('${mint.balance} sat'),
+                        onTap: () async {
+                          final wallet = await _loadWallet(mint.url);
+                          setState(() {
+                            _wallet = wallet;
+                          });
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
             ],
           ),
-          actions: [IconButton(icon: Icon(Icons.settings), onPressed: () {})],
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
@@ -110,6 +131,59 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MenuButton extends StatelessWidget {
+  const _MenuButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.menu),
+      onPressed: () {
+        Scaffold.of(context).openDrawer();
+      },
+    );
+  }
+}
+
+class _AppBarTitle extends StatelessWidget {
+  final Wallet wallet;
+
+  const _AppBarTitle({required this.wallet});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        WalletBalanceBuilder(
+          builder: (context, balance) {
+            if (!balance.hasData) {
+              return CircularProgressIndicator();
+            }
+            return AnimatedDigitWidget(
+              value: balance.data?.toInt(),
+              suffix: ' sat',
+              enableSeparator: true,
+              textStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            );
+          },
+        ),
+        IconButton(
+          icon: Icon(Icons.add_circle_outlined),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              enableDrag: false,
+              builder: (context) => _DepositSheet(wallet: wallet),
+            );
+          },
+        ),
+      ],
     );
   }
 }
