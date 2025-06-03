@@ -118,8 +118,9 @@ class _TransactionsListView extends StatelessWidget {
               },
               onDismissed: (_) async {
                 final cubit = context.read<_ActivityCubit>();
-                final success = await cubit.revertTransaction(transaction);
-                if (!success) {
+                try {
+                  await cubit.revertTransaction(transaction);
+                } catch (e) {
                   final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
                   final dialogTitle = 'Error';
                   final dialogContent = 'Failed to revert transaction. Please try again later.';
@@ -188,7 +189,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
     }
   }
 
-  Future<bool> revertTransaction(Transaction transaction) => wallet.revertTransaction(transactionId: transaction.id);
+  Future<void> revertTransaction(Transaction transaction) => wallet.revertTransaction(transactionId: transaction.id);
 }
 
 class _ActivityState {

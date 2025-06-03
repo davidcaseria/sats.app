@@ -209,7 +209,7 @@ class _ActionSheet extends StatelessWidget {
             (state.actionState == _ActionState.inProgress)
                 ? CircularProgressIndicator()
                 : (state.actionState == _ActionState.success)
-                ? Icon(Icons.check_circle, color: Colors.greenAccent, size: 48)
+                ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.tertiary, size: 48)
                 : Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 48),
             SizedBox(height: 16),
             if (state.actionMsg != null) Text(state.actionMsg!, style: Theme.of(context).textTheme.headlineSmall),
@@ -417,9 +417,13 @@ class _TransactCubit extends Cubit<_TransactState> {
 
   void parseInput(ParseInputResult result) {
     result.when(
-      bitcoinAddress: (address) {
-        // TODO handle send to address
-        emit(state.copyWith(satAmount: address.amount));
+      bitcoinAddress: (address) async {
+        final meltQuote = await wallet.meltQuote(request: address.address);
+        emit(state.copyWith(action: _TransactAction.pay, satAmount: address.amount, meltQuote: meltQuote));
+      },
+      bolt11Invoice: (invoice) async {
+        final meltQuote = await wallet.meltQuote(request: invoice.encoded);
+        emit(state.copyWith(action: _TransactAction.pay, satAmount: invoice.amount, meltQuote: meltQuote));
       },
       paymentRequest: (request) async {
         emit(state.copyWith(action: _TransactAction.pay, satAmount: request.amount, paymentRequest: request));
@@ -501,6 +505,7 @@ class _TransactCubit extends Cubit<_TransactState> {
 class _TransactState {
   final BigInt satAmount;
   final _TransactAction? action;
+  final MeltQuote? meltQuote;
   final PaymentRequest? paymentRequest;
   final PreparedSend? preparedSend;
   final String? memo;
@@ -511,6 +516,7 @@ class _TransactState {
   _TransactState({
     required this.satAmount,
     this.action,
+    this.meltQuote,
     this.paymentRequest,
     this.preparedSend,
     this.memo,
@@ -530,6 +536,7 @@ class _TransactState {
   _TransactState copyWith({
     BigInt? satAmount,
     _TransactAction? action,
+    MeltQuote? meltQuote,
     PaymentRequest? paymentRequest,
     PreparedSend? preparedSend,
     String? memo,
@@ -540,6 +547,7 @@ class _TransactState {
     return _TransactState(
       satAmount: satAmount ?? this.satAmount,
       action: action ?? this.action,
+      meltQuote: meltQuote ?? this.meltQuote,
       paymentRequest: paymentRequest ?? this.paymentRequest,
       preparedSend: preparedSend ?? this.preparedSend,
       memo: memo ?? this.memo,

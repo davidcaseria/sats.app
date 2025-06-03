@@ -17,6 +17,7 @@ dependencies:
   animated_digit: ^3.2.3
   app_links: ^6.4.0
   bloc: ^9.0.0
+  equatable: ^2.0.7
   flutter_bloc: ^9.1.1
   flutter_secure_storage: ^9.2.4
   flutter_sticky_header: ^0.8.0

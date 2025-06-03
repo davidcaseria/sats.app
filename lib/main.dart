@@ -87,19 +87,20 @@ class _AppState extends State<_App> {
   }
 
   Widget _buildApp() {
+    final themeData = ThemeData.from(colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange));
     if (Theme.of(context).platform == TargetPlatform.iOS) {
       return CupertinoApp(
         debugShowCheckedModeBanner: false,
         localizationsDelegates: [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate],
         navigatorKey: _navigatorKey,
-        theme: MaterialBasedCupertinoThemeData(materialTheme: ThemeData.light()),
+        theme: MaterialBasedCupertinoThemeData(materialTheme: themeData),
         home: HomeScreen(db: widget.db, wallet: widget.wallet),
       );
     } else {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         navigatorKey: _navigatorKey,
-        theme: ThemeData.light(),
+        theme: themeData,
         home: HomeScreen(db: widget.db, wallet: widget.wallet),
       );
     }
