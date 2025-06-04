@@ -352,6 +352,7 @@ class _DepositSheetMintQuote extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
+              SizedBox(height: 8),
               Text('Deposit Request', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
               SizedBox(height: 8),
               QrImageView(data: quote.request, size: 250),

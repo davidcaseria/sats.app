@@ -86,7 +86,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: "7e8858b22fa3ae157917ed930ea176ca11e71870"
+      resolved-ref: d1435a61e6e61ff9d2f44576ffce5cd48bc2c8b4
       url: "https://github.com/davidcaseria/cdk_flutter.git"
     source: git
     version: "0.0.1"
@@ -434,10 +434,10 @@ packages:
     dependency: "direct main"
     description:
       name: mobile_scanner
-      sha256: "72f06a071aa8b14acea3ab43ea7949eefe4a2469731ae210e006ba330a033a8c"
+      sha256: "54005bdea7052d792d35b4fef0f84ec5ddc3a844b250ecd48dc192fb9b4ebc95"
       url: "https://pub.dev"
     source: hosted
-    version: "7.0.0"
+    version: "7.0.1"
   nested:
     dependency: transitive
     description:
