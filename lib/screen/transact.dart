@@ -24,15 +24,79 @@ class TransactScreen extends StatelessWidget {
 }
 
 class _TransactScreen extends StatelessWidget {
+  Future<void> _showSheet(BuildContext context) async {
+    final cubit = context.read<_TransactCubit>();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      builder: (context) => BlocProvider.value(value: cubit, child: _ActionSheet()),
+    ).whenComplete(() async {
+      await Future.delayed(Duration(milliseconds: 300));
+      cubit.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        Expanded(flex: 2, child: _AmountDisplay()),
-        Expanded(flex: 4, child: _NumberPad()),
-        _ActionButtonsRow(),
-      ],
+    return BlocListener<_TransactCubit, _TransactState>(
+      listenWhen: (previous, current) => previous.action != current.action,
+      listener: (context, state) {
+        if (state.action != null) {
+          _showSheet(context);
+        }
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          SizedBox(height: 90, child: _RequestDisplay()),
+          Expanded(flex: 2, child: _AmountDisplay()),
+          Expanded(flex: 4, child: _NumberPad()),
+          _ActionButtonsRow(),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestDisplay extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<_TransactCubit, _TransactState>(
+      builder: (context, state) {
+        if (state.request == null) {
+          return const SizedBox.shrink();
+        }
+        String req = state.request!;
+        String display;
+        if (req.length <= 16) {
+          display = req;
+        } else {
+          display = '${req.substring(0, 6)}...${req.substring(req.length - 6)}';
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400, width: 1.5),
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.grey.shade50,
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Payment Request',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.grey.shade700, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(display, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -65,7 +129,7 @@ class _NumberPad extends StatelessWidget {
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: row.map((number) => _NumberButton(number)).toList()),
           ),
         Expanded(
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [Spacer(), _NumberButton(0), _BackspaceButton()]),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [_ClearButton(), _NumberButton(0), _BackspaceButton()]),
         ),
       ],
     );
@@ -94,6 +158,31 @@ class _NumberButton extends StatelessWidget {
   }
 }
 
+class _ClearButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<_TransactCubit, _TransactState>(
+      builder: (context, state) {
+        if (state.request == null) {
+          return Spacer();
+        }
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: InkWell(
+              onTap: () => context.read<_TransactCubit>().clear(),
+              child: Container(
+                alignment: Alignment.center,
+                child: Icon(Icons.close, size: 24, color: Theme.of(context).iconTheme.color),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _BackspaceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -113,68 +202,51 @@ class _BackspaceButton extends StatelessWidget {
 }
 
 class _ActionButtonsRow extends StatelessWidget {
-  Future<void> _showSheet(BuildContext context) async {
-    final cubit = context.read<_TransactCubit>();
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      enableDrag: false,
-      builder: (context) => BlocProvider.value(value: cubit, child: _ActionSheet()),
-    ).whenComplete(() async {
-      await Future.delayed(Duration(milliseconds: 300));
-      cubit.clear();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 0, 24, 32),
-      child: BlocListener<_TransactCubit, _TransactState>(
-        listenWhen: (previous, current) => previous.action != current.action,
-        listener: (context, state) {
-          if (state.action != null) {
-            _showSheet(context);
-          }
-        },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            Expanded(
-              child: _ActionButton(
-                onPressed: () {
-                  context.read<_TransactCubit>().requestPressed();
-                },
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Expanded(
+            child: BlocBuilder<_TransactCubit, _TransactState>(
+              builder: (context, state) => _ActionButton(
+                onPressed: (state.request != null)
+                    ? null
+                    : () {
+                        context.read<_TransactCubit>().requestPressed();
+                      },
                 text: 'Request',
               ),
             ),
-            SizedBox(width: 16),
-            SizedBox(
-              width: 50,
-              height: 50,
-              child: CupertinoButton(
-                onPressed: () async {
-                  final cubit = context.read<_TransactCubit>();
-                  final result = await Navigator.of(context).push(QrScannerScreen.route());
-                  if (result != null) {
-                    cubit.parseInput(result);
-                  }
-                },
-                padding: EdgeInsets.zero,
-                child: Icon(Icons.qr_code_scanner, size: 24),
-              ),
+          ),
+          SizedBox(width: 16),
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: CupertinoButton(
+              onPressed: () async {
+                final cubit = context.read<_TransactCubit>();
+                final result = await Navigator.of(context).push(QrScannerScreen.route());
+                if (result != null) {
+                  cubit.parseInput(result);
+                }
+              },
+              padding: EdgeInsets.zero,
+              child: Icon(Icons.qr_code_scanner, size: 24),
             ),
-            SizedBox(width: 16),
-            Expanded(
-              child: _ActionButton(
-                onPressed: () async {
-                  context.read<_TransactCubit>().payPressed();
-                },
-                text: 'Pay',
-              ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: _ActionButton(
+              onPressed: () async {
+                context.read<_TransactCubit>().payPressed();
+              },
+              text: 'Pay',
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -182,9 +254,9 @@ class _ActionButtonsRow extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
-  const _ActionButton({required this.text, required this.onPressed});
+  const _ActionButton({required this.text, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -418,8 +490,16 @@ class _TransactCubit extends Cubit<_TransactState> {
   void parseInput(ParseInputResult result) {
     result.when(
       bitcoinAddress: (address) async {
-        final meltQuote = await wallet.meltQuote(request: address.address);
-        emit(state.copyWith(action: _TransactAction.pay, satAmount: address.amount, meltQuote: meltQuote));
+        if (address.cashu != null) {
+          final amount = address.cashu?.amount ?? address.amount;
+          emit(state.copyWith(action: (amount != null) ? _TransactAction.pay : null, satAmount: amount, paymentRequest: address.cashu));
+        } else if (address.lightning != null) {
+          final request = address.lightning!.encoded;
+          final meltQuote = await wallet.meltQuote(request: request);
+          emit(state.copyWith(action: _TransactAction.pay, satAmount: address.lightning!.amount, request: request, meltQuote: meltQuote));
+        } else {
+          emit(state.copyWith(action: (address.amount != null) ? _TransactAction.pay : null, satAmount: address.amount, request: address.address));
+        }
       },
       bolt11Invoice: (invoice) async {
         final meltQuote = await wallet.meltQuote(request: invoice.encoded);
@@ -505,6 +585,7 @@ class _TransactCubit extends Cubit<_TransactState> {
 class _TransactState {
   final BigInt satAmount;
   final _TransactAction? action;
+  final String? request;
   final MeltQuote? meltQuote;
   final PaymentRequest? paymentRequest;
   final PreparedSend? preparedSend;
@@ -516,6 +597,7 @@ class _TransactState {
   _TransactState({
     required this.satAmount,
     this.action,
+    this.request,
     this.meltQuote,
     this.paymentRequest,
     this.preparedSend,
@@ -536,6 +618,7 @@ class _TransactState {
   _TransactState copyWith({
     BigInt? satAmount,
     _TransactAction? action,
+    String? request,
     MeltQuote? meltQuote,
     PaymentRequest? paymentRequest,
     PreparedSend? preparedSend,
@@ -547,6 +630,7 @@ class _TransactState {
     return _TransactState(
       satAmount: satAmount ?? this.satAmount,
       action: action ?? this.action,
+      request: request ?? this.request,
       meltQuote: meltQuote ?? this.meltQuote,
       paymentRequest: paymentRequest ?? this.paymentRequest,
       preparedSend: preparedSend ?? this.preparedSend,
@@ -557,16 +641,16 @@ class _TransactState {
     );
   }
 
+  String formattedSatAmount() {
+    return '${NumberFormat('#,##0').format(satAmount.toInt())} sat';
+  }
+
   bool isPayAction() {
     return action == _TransactAction.pay;
   }
 
   bool isRequestAction() {
     return action == _TransactAction.request;
-  }
-
-  String formattedSatAmount() {
-    return '${NumberFormat('#,##0').format(satAmount.toInt())} sat';
   }
 }
 
