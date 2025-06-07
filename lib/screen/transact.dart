@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:cdk_flutter/cdk_flutter.dart';
@@ -531,23 +532,150 @@ class _ActionSheetButton extends StatelessWidget {
   }
 }
 
-class _ActionSheetQrCode extends StatelessWidget {
+class _ActionSheetQrCode extends StatefulWidget {
   final Token token;
 
   const _ActionSheetQrCode({required this.token});
 
   @override
+  State<_ActionSheetQrCode> createState() => _ActionSheetQrCodeState();
+}
+
+class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
+  int _currentIndex = 0;
+  int _currentSpeedIdx = 0;
+  int _currentFragmentLengthIdx = 2;
+  late List<String> _parts;
+  late PageController _pageController;
+  Timer? _timer;
+
+  static const double _qrSize = 300.0;
+  static const List<int> _speeds = [150, 500, 250]; // Fast, Slow, Medium
+  static const List<int> _fragmentLengths = [50, 100, 150]; // Small, Medium, Large
+
+  @override
+  void initState() {
+    super.initState();
+    _parts = encodeQrToken(token: widget.token, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    _pageController = PageController(initialPage: 0);
+    _startTimer();
+  }
+
+  void _updateParts() {
+    final oldLen = _parts.length;
+    _parts = encodeQrToken(token: widget.token, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    if (_parts.length != oldLen) {
+      _currentIndex = 0;
+      _pageController.jumpToPage(0);
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    if (_parts.length <= 1) return;
+    _timer = Timer.periodic(Duration(milliseconds: _speeds[_currentSpeedIdx]), (timer) {
+      if (!mounted) return;
+      setState(() {
+        _currentIndex = (_currentIndex + 1) % _parts.length;
+        _pageController.jumpToPage(_currentIndex);
+      });
+    });
+  }
+
+  Widget _controlButton({required IconData icon, required String label, required VoidCallback onTap}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(32),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Theme.of(context).colorScheme.outline, width: 2),
+            ),
+            child: Icon(icon, size: 28, color: Theme.of(context).iconTheme.color),
+          ),
+        ),
+        SizedBox(height: 6),
+        GestureDetector(
+          onTap: onTap,
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    _updateParts();
+
+    // Speed button: Fast (0) → Slow (1) → Medium (2) → Fast (0)
+    final speedButton = _controlButton(
+      icon: (_currentSpeedIdx == 0)
+          ? Icons.forward_30
+          : (_currentSpeedIdx == 1)
+          ? Icons.forward_5
+          : Icons.forward_10,
+      label: 'Speed',
+      onTap: () {
+        setState(() {
+          _currentSpeedIdx = (_currentSpeedIdx + 1) % 3;
+          _startTimer();
+        });
+      },
+    );
+
+    // Fragment button: Small (0), Medium (1), Large (2)
+    final fragmentButton = _controlButton(
+      icon: (_currentFragmentLengthIdx == 0)
+          ? Icons.density_large
+          : (_currentFragmentLengthIdx == 1)
+          ? Icons.density_medium
+          : Icons.density_small,
+      label: 'Density',
+      onTap: () {
+        setState(() {
+          _currentFragmentLengthIdx = (_currentFragmentLengthIdx + 1) % _fragmentLengths.length;
+          _updateParts();
+          _startTimer();
+        });
+      },
+    );
+
     return Padding(
       padding: EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('Scan QR Code', style: Theme.of(context).textTheme.headlineSmall),
-          QrImageView(data: token.encoded, size: min(MediaQuery.of(context).size.width * 0.9, 300)),
+          SizedBox(height: 16),
+          SizedBox(
+            height: _qrSize,
+            width: _qrSize,
+            child: PageView.builder(
+              controller: _pageController,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: _parts.length,
+              itemBuilder: (context, idx) => QrImageView(data: _parts[idx], size: _qrSize),
+            ),
+          ),
+          SizedBox(height: 12),
+          if (_parts.length > 1) Text('${_currentIndex + 1} of ${_parts.length}', style: Theme.of(context).textTheme.bodyMedium),
+          SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [speedButton, fragmentButton]),
           OutlinedButton.icon(
             onPressed: () async {
-              await SharePlus.instance.share(ShareParams(text: token.encoded));
+              await SharePlus.instance.share(ShareParams(text: widget.token.encoded));
               context.read<_TransactCubit>().sharedToken();
             },
             style: OutlinedButton.styleFrom(minimumSize: Size(double.infinity, 50), textStyle: Theme.of(context).textTheme.bodyLarge),

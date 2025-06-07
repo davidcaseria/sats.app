@@ -61,51 +61,10 @@ class _QrCodeScanner extends StatefulWidget {
   const _QrCodeScanner();
 
   @override
-  __QrCodeScannerState createState() => __QrCodeScannerState();
+  _QrCodeScannerState createState() => _QrCodeScannerState();
 }
 
-class __QrCodeScannerState extends State<_QrCodeScanner> with WidgetsBindingObserver {
-  // final MobileScannerController controller = MobileScannerController(formats: [BarcodeFormat.qrCode], detectionSpeed: DetectionSpeed.noDuplicates);
-  // StreamSubscription<Object?>? _subscription;
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   WidgetsBinding.instance.addObserver(this);
-  //   _subscription = controller.barcodes.listen(_handleScan);
-  //   unawaited(controller.start());
-  // }
-
-  // @override
-  // Future<void> dispose() async {
-  //   WidgetsBinding.instance.removeObserver(this);
-  //   unawaited(_subscription?.cancel());
-  //   _subscription = null;
-  //   super.dispose();
-  //   await controller.dispose();
-  // }
-
-  // @override
-  // void didChangeAppLifecycleState(AppLifecycleState state) {
-  //   if (!controller.value.hasCameraPermission) {
-  //     return;
-  //   }
-
-  //   switch (state) {
-  //     case AppLifecycleState.detached:
-  //     case AppLifecycleState.hidden:
-  //     case AppLifecycleState.paused:
-  //       return;
-  //     case AppLifecycleState.resumed:
-  //       _subscription = controller.barcodes.listen(_handleScan);
-  //       unawaited(controller.start());
-  //     case AppLifecycleState.inactive:
-  //       unawaited(_subscription?.cancel());
-  //       _subscription = null;
-  //       unawaited(controller.stop());
-  //   }
-  // }
-
+class _QrCodeScannerState extends State<_QrCodeScanner> with WidgetsBindingObserver {
   void _handleScan(BarcodeCapture capture) {
     if (capture.barcodes.isEmpty) {
       return;
@@ -131,12 +90,21 @@ class _QrScannerCubit extends Cubit<_QrScannerState> {
       final result = parseInput(input: input);
       emit(_QrScannerState(result: result));
     } catch (e) {
-      emit(_QrScannerState(error: e.toString()));
+      try {
+        state.tokenDecoder.receive(part_: input);
+        if (state.tokenDecoder.isComplete()) {
+          final result = ParseInputResult.token(state.tokenDecoder.value()!);
+          emit(_QrScannerState(result: result));
+        }
+      } catch (e) {
+        emit(_QrScannerState(error: 'Failed to parse QR code'));
+      }
     }
   }
 }
 
 class _QrScannerState {
+  final TokenDecoder tokenDecoder = TokenDecoder();
   final ParseInputResult? result;
   final String? error;
 
