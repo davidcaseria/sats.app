@@ -86,7 +86,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: e9ae617b3a833080ab848b7929723afa96a56885
+      resolved-ref: "515fc32e961ca86a4be1ffa5db4291e43af3d023"
       url: "https://github.com/davidcaseria/cdk_flutter.git"
     source: git
     version: "0.0.1"
@@ -660,7 +660,7 @@ packages:
     source: hosted
     version: "3.1.4"
   uuid:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: uuid
       sha256: a5be9ef6618a7ac1e964353ef476418026db906c4facdedaa299b7a2e71690ff

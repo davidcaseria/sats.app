@@ -10,6 +10,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:uuid/uuid.dart';
 
 class TransactScreen extends StatelessWidget {
   final Wallet wallet;
@@ -272,11 +273,15 @@ class _ActionSheet extends StatelessWidget {
       return Column(
         children: [
           Padding(padding: const EdgeInsets.all(24), child: _ActionSheetHeader()),
-          Expanded(child: (state.isPayAction()) ? _ActionSheetPayConfirmation() : _ActionSheetPaymentRequest()),
+          Expanded(child: _ActionSheetConfirmation()),
         ],
       );
-    } else if (state.actionState == _ActionState.inProgress && state.method == _TransactMethod.qrCode && state.token != null) {
-      return _ActionSheetQrCode(token: state.token!);
+    } else if (state.actionState == _ActionState.inProgress && state.method == _TransactMethod.qrCode) {
+      if (state.token != null) {
+        return _ActionSheetQrCode(token: state.token!);
+      } else if (state.paymentRequest != null) {
+        return _ActionSheetQrCode(paymentRequest: state.paymentRequest!);
+      }
     }
     return Center(
       child: Column(
@@ -349,7 +354,7 @@ class _ActionSheetHeader extends StatelessWidget {
   }
 }
 
-class _ActionSheetPayConfirmation extends StatelessWidget {
+class _ActionSheetConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<_TransactCubit, _TransactState>(
@@ -484,25 +489,6 @@ class _ActionSheetMemoCheckbox extends StatelessWidget {
   }
 }
 
-class _ActionSheetPaymentRequest extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Share this payment request with the recipient:', style: Theme.of(context).textTheme.bodyMedium),
-          SizedBox(height: 16),
-          // _ActionSheetPaymentRequestInfo(),
-          Spacer(),
-          _ActionSheetButton(),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActionSheetButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -533,9 +519,11 @@ class _ActionSheetButton extends StatelessWidget {
 }
 
 class _ActionSheetQrCode extends StatefulWidget {
-  final Token token;
+  final Token? token;
+  final PaymentRequest? paymentRequest;
 
-  const _ActionSheetQrCode({required this.token});
+  const _ActionSheetQrCode({this.token, this.paymentRequest})
+    : assert(token != null || paymentRequest != null, 'Either token or paymentRequest must be provided');
 
   @override
   State<_ActionSheetQrCode> createState() => _ActionSheetQrCodeState();
@@ -553,17 +541,26 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
   static const List<int> _speeds = [150, 500, 250]; // Fast, Slow, Medium
   static const List<int> _fragmentLengths = [50, 100, 150]; // Small, Medium, Large
 
+  List<String> _encodeQr() {
+    if (widget.token != null) {
+      return encodeQrToken(token: widget.token!, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    } else if (widget.paymentRequest != null) {
+      return encodeQrPaymentRequest(paymentRequest: widget.paymentRequest!, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    }
+    return [];
+  }
+
   @override
   void initState() {
     super.initState();
-    _parts = encodeQrToken(token: widget.token, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    _parts = _encodeQr();
     _pageController = PageController(initialPage: 0);
     _startTimer();
   }
 
   void _updateParts() {
     final oldLen = _parts.length;
-    _parts = encodeQrToken(token: widget.token, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+    _parts = _encodeQr();
     if (_parts.length != oldLen) {
       _currentIndex = 0;
       _pageController.jumpToPage(0);
@@ -675,12 +672,15 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [speedButton, fragmentButton]),
           OutlinedButton.icon(
             onPressed: () async {
-              await SharePlus.instance.share(ShareParams(text: widget.token.encoded));
-              context.read<_TransactCubit>().sharedToken();
+              final params = ShareParams(
+                uri: Uri(scheme: 'cashu', path: widget.token?.encoded ?? widget.paymentRequest!.encode()),
+              );
+              await SharePlus.instance.share(params);
+              context.read<_TransactCubit>().sharedQrCode();
             },
             style: OutlinedButton.styleFrom(minimumSize: Size(double.infinity, 50), textStyle: Theme.of(context).textTheme.bodyLarge),
             icon: Icon(Icons.share),
-            label: Text('Share Token'),
+            label: Text('Share ${(widget.token != null) ? 'Token' : 'Request'}'),
           ),
         ],
       ),
@@ -812,24 +812,36 @@ class _TransactCubit extends Cubit<_TransactState> {
 
   void request({String? memo}) async {
     emit(state.copyWith(actionState: _ActionState.inProgress));
+    final id = Uuid().v4();
+    final paymentRequest = PaymentRequest(
+      paymentId: id,
+      amount: state.satAmount,
+      mints: [wallet.mintUrl],
+      unit: 'sat',
+      singleUse: true,
+      description: state.memo,
+      transports: [Transport(type: TransportType.httpPost, target: 'https://satsapp.link/pay-request/$id')],
+    );
 
-    // final id = Uuid().v4();
-    // final paymentRequest = PaymentRequest(
-    //   paymentId: id,
-    //   amount: state.satAmount,
-    //   mints: [state.mintUrl!],
-    //   unit: 'sat',
-    //   singleUse: true,
-    //   description: memo ?? state.memo,
-    //   transports: [Transport(type: TransportType.httpPost, target: '${AppConfig.getApiUrl()}/pay-request/$id')],
-    // );
-    // await Share.share(paymentRequest.encode());
-
-    emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment Request Sent').clearTransaction());
+    switch (state.method) {
+      case _TransactMethod.link:
+        break;
+      case _TransactMethod.username:
+        break;
+      case _TransactMethod.qrCode:
+        emit(state.copyWith(paymentRequest: paymentRequest));
+        break;
+      case _TransactMethod.nfc:
+        break;
+    }
   }
 
-  void sharedToken() {
-    emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
+  void sharedQrCode() {
+    emit(
+      state
+          .copyWith(actionState: _ActionState.success, actionMsg: (state.action == _TransactAction.pay) ? 'Payment sent!' : 'Request sent!')
+          .clearTransaction(),
+    );
   }
 
   void clear() async {
