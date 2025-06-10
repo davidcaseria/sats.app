@@ -355,34 +355,88 @@ class _ActionSheetHeader extends StatelessWidget {
   }
 }
 
-class _ActionSheetConfirmation extends StatelessWidget {
+class _ActionSheetConfirmation extends StatefulWidget {
+  @override
+  State<_ActionSheetConfirmation> createState() => _ActionSheetConfirmationState();
+}
+
+class _ActionSheetConfirmationState extends State<_ActionSheetConfirmation> {
+  final PageController _pageController = PageController();
+
+  void showUsernameSearch() {
+    setState(() {
+      _pageController.animateToPage(1, duration: Duration(milliseconds: 250), curve: Curves.easeInOut);
+    });
+  }
+
+  void hideUsernameSearch() {
+    setState(() {
+      _pageController.animateToPage(0, duration: Duration(milliseconds: 250), curve: Curves.easeInOut);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<_TransactCubit, _TransactState>(
-      builder: (context, state) => Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (state.paymentRequest == null && state.meltQuote == null) ...[_ActionSheetMethod(), Spacer()],
-            _ActionSheetMemoField(),
-            _ActionSheetMemoCheckbox(),
-            Spacer(),
-            _ActionSheetButton(),
-          ],
-        ),
-      ),
+      builder: (context, state) {
+        return Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (state.paymentRequest == null && state.meltQuote == null)
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: NeverScrollableScrollPhysics(),
+                    children: [
+                      // Main method/memo/confirm page
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ActionSheetMethod(onShowUsernameSearch: showUsernameSearch),
+                          Spacer(),
+                          _ActionSheetMemoField(),
+                          _ActionSheetMemoCheckbox(),
+                          Spacer(),
+                          _ActionSheetButton(),
+                        ],
+                      ),
+                      // Username search page
+                      _ActionSheetUsernameSearch(
+                        onSelected: (username) {
+                          context.read<_TransactCubit>().selectUsername(username);
+                          hideUsernameSearch();
+                        },
+                        onCancel: hideUsernameSearch,
+                      ),
+                    ],
+                  ),
+                )
+              else ...[
+                _ActionSheetMemoField(),
+                _ActionSheetMemoCheckbox(),
+                Spacer(),
+                _ActionSheetButton(),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
 class _ActionSheetMethod extends StatelessWidget {
+  final void Function()? onShowUsernameSearch;
   final List<_ActionSheetMethodType> _methods = const [
     _ActionSheetMethodType(icon: Icons.link, label: 'Link', method: _TransactMethod.link),
     _ActionSheetMethodType(icon: Icons.person, label: 'Username', method: _TransactMethod.username),
     _ActionSheetMethodType(icon: Icons.qr_code, label: 'QR Code', method: _TransactMethod.qrCode),
     _ActionSheetMethodType(icon: Icons.contactless, label: 'NFC', method: _TransactMethod.nfc),
   ];
+
+  const _ActionSheetMethod({this.onShowUsernameSearch});
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +472,7 @@ class _ActionSheetMethod extends StatelessWidget {
     }
 
     return BlocBuilder<_TransactCubit, _TransactState>(
-      buildWhen: (previous, current) => previous.method != current.method || previous.selectedUsername != current.selectedUsername,
+      buildWhen: (previous, current) => previous.method != current.method || previous.username != current.username,
       builder: (context, state) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -440,7 +494,10 @@ class _ActionSheetMethod extends StatelessWidget {
               );
             }).toList(),
           ),
-          if (state.method == _TransactMethod.username) ...[SizedBox(height: 16), _UsernameInput()],
+          if (state.method == _TransactMethod.username) ...[
+            SizedBox(height: 16),
+            _ActionSheetUsernameInput(username: state.username, onTap: onShowUsernameSearch),
+          ],
         ],
       ),
     );
@@ -452,6 +509,92 @@ class _ActionSheetMethodType {
   final String label;
   final _TransactMethod method;
   const _ActionSheetMethodType({required this.icon, required this.label, required this.method});
+}
+
+class _ActionSheetUsernameInput extends StatelessWidget {
+  final String? username;
+  final VoidCallback? onTap;
+
+  const _ActionSheetUsernameInput({this.username, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (username == null) {
+      return TextButton.icon(icon: Icon(Icons.person_add), label: Text('Enter username'), onPressed: onTap);
+    }
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(child: Icon(Icons.person)),
+          SizedBox(width: 8),
+          Text(username!, style: Theme.of(context).textTheme.bodyLarge),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionSheetUsernameSearch extends StatelessWidget {
+  final void Function(String username) onSelected;
+  final VoidCallback onCancel;
+
+  // For demonstration, a static list of usernames. Replace with your actual data source.
+  final List<String> usernames = const [
+    'alice',
+    'bob',
+    'charlie',
+    'david',
+    'eve',
+    'frank',
+    'grace',
+    'heidi',
+    'ivan',
+    'judy',
+    'mallory',
+    'oscar',
+    'peggy',
+    'trent',
+    'victor',
+    'walter',
+  ];
+
+  _ActionSheetUsernameSearch({required this.onSelected, required this.onCancel, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            IconButton(icon: Icon(Icons.arrow_back), onPressed: onCancel),
+            Expanded(
+              child: Text('Select Username', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
+            ),
+            SizedBox(width: 48), // To balance the back button
+          ],
+        ),
+        Expanded(
+          child: SearchableList<String>(
+            initialList: usernames,
+            filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
+            itemBuilder: (username) => ListTile(
+              leading: CircleAvatar(child: Icon(Icons.person)),
+              title: Text(username),
+              onTap: () => onSelected(username),
+            ),
+            inputDecoration: InputDecoration(
+              hintText: 'Search username',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              prefixIcon: Icon(Icons.search),
+            ),
+            emptyWidget: Center(child: Text('No users found')),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ActionSheetMemoField extends StatelessWidget {
@@ -838,6 +981,10 @@ class _TransactCubit extends Cubit<_TransactState> {
     }
   }
 
+  void selectUsername(String username) {
+    emit(state.copyWith(username: username));
+  }
+
   void sharedQrCode() {
     emit(
       state
@@ -852,16 +999,13 @@ class _TransactCubit extends Cubit<_TransactState> {
     }
     emit(state.clear());
   }
-
-  void setSelectedUsername(String username) {
-    emit(state.copyWith(selectedUsername: username));
-  }
 }
 
 class _TransactState {
   final BigInt satAmount;
   final _TransactAction? action;
   final _TransactMethod method;
+  final String? username;
   final String? request;
   final MeltQuote? meltQuote;
   final PaymentRequest? paymentRequest;
@@ -871,12 +1015,12 @@ class _TransactState {
   final _ActionState? actionState;
   final Token? token;
   final String? actionMsg;
-  final String? selectedUsername;
 
   _TransactState({
     required this.satAmount,
     this.action,
     this.method = _TransactMethod.link,
+    this.username,
     this.request,
     this.meltQuote,
     this.paymentRequest,
@@ -886,7 +1030,6 @@ class _TransactState {
     this.actionState,
     this.token,
     this.actionMsg,
-    this.selectedUsername,
   });
 
   _TransactState clear() {
@@ -901,6 +1044,7 @@ class _TransactState {
     BigInt? satAmount,
     _TransactAction? action,
     _TransactMethod? method,
+    String? username,
     String? request,
     MeltQuote? meltQuote,
     PaymentRequest? paymentRequest,
@@ -910,12 +1054,12 @@ class _TransactState {
     _ActionState? actionState,
     Token? token,
     String? actionMsg,
-    String? selectedUsername,
   }) {
     return _TransactState(
       satAmount: satAmount ?? this.satAmount,
       action: action ?? this.action,
       method: method ?? this.method,
+      username: username ?? this.username,
       request: request ?? this.request,
       meltQuote: meltQuote ?? this.meltQuote,
       paymentRequest: paymentRequest ?? this.paymentRequest,
@@ -925,7 +1069,6 @@ class _TransactState {
       actionState: actionState ?? this.actionState,
       token: token ?? this.token,
       actionMsg: actionMsg ?? this.actionMsg,
-      selectedUsername: selectedUsername ?? this.selectedUsername,
     );
   }
 
@@ -973,72 +1116,3 @@ enum _TransactAction { request, pay }
 enum _ActionState { inProgress, success, failure }
 
 enum _TransactMethod { link, username, qrCode, nfc }
-
-class _UsernameInput extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<_TransactCubit, _TransactState>(
-      buildWhen: (prev, curr) => prev.selectedUsername != curr.selectedUsername,
-      builder: (context, state) {
-        final selected = state.selectedUsername;
-        if (selected == null) {
-          return Center(
-            child: TextButton.icon(
-              icon: Icon(Icons.person_add),
-              label: Text('Enter username'),
-              onPressed: () async {
-                final username = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _UsernameSearchScreen()));
-                if (username != null) {
-                  context.read<_TransactCubit>().setSelectedUsername(username);
-                }
-              },
-            ),
-          );
-        } else {
-          return Center(
-            child: InkWell(
-              onTap: () async {
-                final username = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _UsernameSearchScreen()));
-                if (username != null) {
-                  context.read<_TransactCubit>().setSelectedUsername(username);
-                }
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(child: Icon(Icons.person)),
-                  SizedBox(width: 8),
-                  Text(selected, style: Theme.of(context).textTheme.bodyLarge),
-                ],
-              ),
-            ),
-          );
-        }
-      },
-    );
-  }
-}
-
-class _UsernameSearchScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    // Example user list, replace with your actual user source
-    final users = ['alice', 'bob', 'carol', 'dave', 'eve', 'frank', 'grace'];
-    return Scaffold(
-      appBar: AppBar(title: Text('Select Username')),
-      body: SearchableList<String>(
-        initialList: users,
-        itemBuilder: (user) => ListTile(
-          leading: CircleAvatar(child: Icon(Icons.person)),
-          title: Text(user),
-          onTap: () {
-            Navigator.of(context).pop(user);
-          },
-        ),
-        filter: (query) => users.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
-        emptyWidget: Center(child: Text('No users found')),
-        inputDecoration: InputDecoration(hintText: 'Search username'),
-      ),
-    );
-  }
-}
