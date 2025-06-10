@@ -11,6 +11,7 @@ import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
+import 'package:searchable_listview/searchable_listview.dart';
 
 class TransactScreen extends StatelessWidget {
   final Wallet wallet;
@@ -417,7 +418,7 @@ class _ActionSheetMethod extends StatelessWidget {
     }
 
     return BlocBuilder<_TransactCubit, _TransactState>(
-      buildWhen: (previous, current) => previous.method != current.method,
+      buildWhen: (previous, current) => previous.method != current.method || previous.selectedUsername != current.selectedUsername,
       builder: (context, state) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -439,6 +440,7 @@ class _ActionSheetMethod extends StatelessWidget {
               );
             }).toList(),
           ),
+          if (state.method == _TransactMethod.username) ...[SizedBox(height: 16), _UsernameInput()],
         ],
       ),
     );
@@ -850,6 +852,10 @@ class _TransactCubit extends Cubit<_TransactState> {
     }
     emit(state.clear());
   }
+
+  void setSelectedUsername(String username) {
+    emit(state.copyWith(selectedUsername: username));
+  }
 }
 
 class _TransactState {
@@ -865,6 +871,7 @@ class _TransactState {
   final _ActionState? actionState;
   final Token? token;
   final String? actionMsg;
+  final String? selectedUsername;
 
   _TransactState({
     required this.satAmount,
@@ -879,6 +886,7 @@ class _TransactState {
     this.actionState,
     this.token,
     this.actionMsg,
+    this.selectedUsername,
   });
 
   _TransactState clear() {
@@ -902,6 +910,7 @@ class _TransactState {
     _ActionState? actionState,
     Token? token,
     String? actionMsg,
+    String? selectedUsername,
   }) {
     return _TransactState(
       satAmount: satAmount ?? this.satAmount,
@@ -916,6 +925,7 @@ class _TransactState {
       actionState: actionState ?? this.actionState,
       token: token ?? this.token,
       actionMsg: actionMsg ?? this.actionMsg,
+      selectedUsername: selectedUsername ?? this.selectedUsername,
     );
   }
 
@@ -963,3 +973,72 @@ enum _TransactAction { request, pay }
 enum _ActionState { inProgress, success, failure }
 
 enum _TransactMethod { link, username, qrCode, nfc }
+
+class _UsernameInput extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<_TransactCubit, _TransactState>(
+      buildWhen: (prev, curr) => prev.selectedUsername != curr.selectedUsername,
+      builder: (context, state) {
+        final selected = state.selectedUsername;
+        if (selected == null) {
+          return Center(
+            child: TextButton.icon(
+              icon: Icon(Icons.person_add),
+              label: Text('Enter username'),
+              onPressed: () async {
+                final username = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _UsernameSearchScreen()));
+                if (username != null) {
+                  context.read<_TransactCubit>().setSelectedUsername(username);
+                }
+              },
+            ),
+          );
+        } else {
+          return Center(
+            child: InkWell(
+              onTap: () async {
+                final username = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => _UsernameSearchScreen()));
+                if (username != null) {
+                  context.read<_TransactCubit>().setSelectedUsername(username);
+                }
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(child: Icon(Icons.person)),
+                  SizedBox(width: 8),
+                  Text(selected, style: Theme.of(context).textTheme.bodyLarge),
+                ],
+              ),
+            ),
+          );
+        }
+      },
+    );
+  }
+}
+
+class _UsernameSearchScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Example user list, replace with your actual user source
+    final users = ['alice', 'bob', 'carol', 'dave', 'eve', 'frank', 'grace'];
+    return Scaffold(
+      appBar: AppBar(title: Text('Select Username')),
+      body: SearchableList<String>(
+        initialList: users,
+        itemBuilder: (user) => ListTile(
+          leading: CircleAvatar(child: Icon(Icons.person)),
+          title: Text(user),
+          onTap: () {
+            Navigator.of(context).pop(user);
+          },
+        ),
+        filter: (query) => users.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
+        emptyWidget: Center(child: Text('No users found')),
+        inputDecoration: InputDecoration(hintText: 'Search username'),
+      ),
+    );
+  }
+}
