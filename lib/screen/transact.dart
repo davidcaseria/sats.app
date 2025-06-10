@@ -936,6 +936,9 @@ class _TransactCubit extends Cubit<_TransactState> {
         case _TransactMethod.link:
           break;
         case _TransactMethod.username:
+          // TODO: Handle username payment
+          await Future.delayed(Duration(milliseconds: 300)); // Simulate delay for username payment
+          emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
           break;
         case _TransactMethod.qrCode:
           emit(state.copyWith(token: token));
