@@ -379,47 +379,41 @@ class _ActionSheetConfirmationState extends State<_ActionSheetConfirmation> {
   Widget build(BuildContext context) {
     return BlocBuilder<_TransactCubit, _TransactState>(
       builder: (context, state) {
+        if (state.paymentRequest == null && state.meltQuote == null) {
+          return PageView(
+            controller: _pageController,
+            physics: NeverScrollableScrollPhysics(),
+            children: [
+              Padding(
+                padding: EdgeInsetsGeometry.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ActionSheetMethod(onShowUsernameSearch: showUsernameSearch),
+                    Spacer(),
+                    _ActionSheetMemoField(),
+                    _ActionSheetMemoCheckbox(),
+                    Spacer(),
+                    _ActionSheetButton(),
+                  ],
+                ),
+              ),
+              _ActionSheetUsernameSearch(
+                onSelected: (username) {
+                  context.read<_TransactCubit>().selectUsername(username);
+                  hideUsernameSearch();
+                },
+                onCancel: hideUsernameSearch,
+              ),
+            ],
+          );
+        }
+
         return Padding(
           padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (state.paymentRequest == null && state.meltQuote == null)
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: NeverScrollableScrollPhysics(),
-                    children: [
-                      // Main method/memo/confirm page
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ActionSheetMethod(onShowUsernameSearch: showUsernameSearch),
-                          Spacer(),
-                          _ActionSheetMemoField(),
-                          _ActionSheetMemoCheckbox(),
-                          Spacer(),
-                          _ActionSheetButton(),
-                        ],
-                      ),
-                      // Username search page
-                      _ActionSheetUsernameSearch(
-                        onSelected: (username) {
-                          context.read<_TransactCubit>().selectUsername(username);
-                          hideUsernameSearch();
-                        },
-                        onCancel: hideUsernameSearch,
-                      ),
-                    ],
-                  ),
-                )
-              else ...[
-                _ActionSheetMemoField(),
-                _ActionSheetMemoCheckbox(),
-                Spacer(),
-                _ActionSheetButton(),
-              ],
-            ],
+            children: [_ActionSheetMemoField(), _ActionSheetMemoCheckbox(), Spacer(), _ActionSheetButton()],
           ),
         );
       },
@@ -520,7 +514,7 @@ class _ActionSheetUsernameInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (username == null) {
-      return TextButton.icon(icon: Icon(Icons.person_add), label: Text('Enter username'), onPressed: onTap);
+      return TextButton.icon(icon: Icon(Icons.person_add), label: Text('Search username'), onPressed: onTap);
     }
     return InkWell(
       onTap: onTap,
@@ -560,39 +554,24 @@ class _ActionSheetUsernameSearch extends StatelessWidget {
     'walter',
   ];
 
-  _ActionSheetUsernameSearch({required this.onSelected, required this.onCancel, Key? key}) : super(key: key);
+  const _ActionSheetUsernameSearch({required this.onSelected, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            IconButton(icon: Icon(Icons.arrow_back), onPressed: onCancel),
-            Expanded(
-              child: Text('Select Username', style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            ),
-            SizedBox(width: 48), // To balance the back button
-          ],
-        ),
-        Expanded(
-          child: SearchableList<String>(
-            initialList: usernames,
-            filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
-            itemBuilder: (username) => ListTile(
-              leading: CircleAvatar(child: Icon(Icons.person)),
-              title: Text(username),
-              onTap: () => onSelected(username),
-            ),
-            inputDecoration: InputDecoration(
-              hintText: 'Search username',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              prefixIcon: Icon(Icons.search),
-            ),
-            emptyWidget: Center(child: Text('No users found')),
-          ),
-        ),
-      ],
+    return SearchableList<String>(
+      initialList: usernames,
+      filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
+      itemBuilder: (username) => ListTile(
+        leading: CircleAvatar(child: Icon(Icons.person)),
+        title: Text(username),
+        onTap: () => onSelected(username),
+      ),
+      inputDecoration: InputDecoration(
+        hintText: 'Search username',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        prefixIcon: Icon(Icons.search),
+      ),
+      emptyWidget: Center(child: Text('No users found')),
     );
   }
 }
