@@ -273,7 +273,7 @@ class _ActionSheet extends StatelessWidget {
     if (state.actionState == null) {
       return Column(
         children: [
-          Padding(padding: const EdgeInsets.all(24), child: _ActionSheetHeader()),
+          Padding(padding: const EdgeInsets.fromLTRB(24, 24, 24, 16), child: _ActionSheetHeader()),
           Expanded(child: _ActionSheetConfirmation()),
         ],
       );
@@ -390,7 +390,6 @@ class _ActionSheetConfirmationState extends State<_ActionSheetConfirmation> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _ActionSheetMethod(onShowUsernameSearch: showUsernameSearch),
-                    Spacer(),
                     _ActionSheetMemoField(),
                     _ActionSheetMemoCheckbox(),
                     Spacer(),
@@ -467,32 +466,40 @@ class _ActionSheetMethod extends StatelessWidget {
 
     return BlocBuilder<_TransactCubit, _TransactState>(
       buildWhen: (previous, current) => previous.method != current.method || previous.username != current.username,
-      builder: (context, state) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            (state.action == _TransactAction.pay) ? 'Pay via' : 'Request via',
-            style: Theme.of(context).textTheme.titleSmall!.copyWith(fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: _methods.map((m) {
-              return methodButton(
-                icon: m.icon,
-                label: m.label,
-                selected: state.method == m.method,
-                onTap: () {
-                  context.read<_TransactCubit>().selectMethod(m.method);
-                },
-              );
-            }).toList(),
-          ),
-          if (state.method == _TransactMethod.username) ...[
-            SizedBox(height: 16),
-            _ActionSheetUsernameInput(username: state.username, onTap: onShowUsernameSearch),
+      builder: (context, state) => Padding(
+        padding: EdgeInsetsGeometry.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (state.action == _TransactAction.pay) ? 'Pay via' : 'Request via',
+              style: Theme.of(context).textTheme.titleSmall!.copyWith(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _methods.map((m) {
+                return methodButton(
+                  icon: m.icon,
+                  label: m.label,
+                  selected: state.method == m.method,
+                  onTap: () {
+                    context.read<_TransactCubit>().selectMethod(m.method);
+                  },
+                );
+              }).toList(),
+            ),
+            SizedBox(height: 4),
+            AnimatedOpacity(
+              opacity: state.method == _TransactMethod.username ? 1.0 : 0.0,
+              duration: Duration(milliseconds: 150),
+              child: IgnorePointer(
+                ignoring: state.method != _TransactMethod.username,
+                child: _ActionSheetUsernameInput(username: state.username, onTap: onShowUsernameSearch),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -522,7 +529,7 @@ class _ActionSheetUsernameInput extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(child: Icon(Icons.person)),
-          SizedBox(width: 8),
+          SizedBox(width: 16),
           Text(username!, style: Theme.of(context).textTheme.bodyLarge),
         ],
       ),
@@ -558,20 +565,23 @@ class _ActionSheetUsernameSearch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SearchableList<String>(
-      initialList: usernames,
-      filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
-      itemBuilder: (username) => ListTile(
-        leading: CircleAvatar(child: Icon(Icons.person)),
-        title: Text(username),
-        onTap: () => onSelected(username),
+    return Padding(
+      padding: EdgeInsetsGeometry.only(left: 8, right: 8),
+      child: SearchableList<String>(
+        initialList: usernames,
+        filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
+        itemBuilder: (username) => ListTile(
+          leading: CircleAvatar(child: Icon(Icons.person)),
+          title: Text(username),
+          onTap: () => onSelected(username),
+        ),
+        inputDecoration: InputDecoration(
+          hintText: 'Search username',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          prefixIcon: Icon(Icons.search),
+        ),
+        emptyWidget: Center(child: Text('No users found')),
       ),
-      inputDecoration: InputDecoration(
-        hintText: 'Search username',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        prefixIcon: Icon(Icons.search),
-      ),
-      emptyWidget: Center(child: Text('No users found')),
     );
   }
 }
@@ -621,13 +631,15 @@ class _ActionSheetButton extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.all(24),
           child: ElevatedButton(
-            onPressed: () {
-              if (state.isPayAction()) {
-                context.read<_TransactCubit>().pay();
-              } else {
-                context.read<_TransactCubit>().request();
-              }
-            },
+            onPressed: (state.method == _TransactMethod.username && state.username == null)
+                ? null
+                : () {
+                    if (state.isPayAction()) {
+                      context.read<_TransactCubit>().pay();
+                    } else {
+                      context.read<_TransactCubit>().request();
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               minimumSize: Size(double.infinity, 50),
               backgroundColor: Theme.of(context).colorScheme.primary,
