@@ -14,6 +14,8 @@ dependencies:
   cdk_flutter:
     git:
       url: https://github.com/davidcaseria/cdk_flutter.git
+  amplify_auth_cognito: ^2.0.0
+  amplify_flutter: ^2.0.0
   animated_digit: ^3.2.3
   app_links: ^6.4.0
   bloc: ^9.0.0
@@ -31,6 +33,7 @@ dependencies:
   share_plus: ^11.0.0
   uuid: ^4.5.1
   searchable_listview: ^2.19.0
+  flutter_verification_code_field: ^1.2.2
 
 dev_dependencies:
   flutter_test:

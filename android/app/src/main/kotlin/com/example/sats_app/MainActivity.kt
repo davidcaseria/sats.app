@@ -1,4 +1,4 @@
-package com.example.sats_app
+package app.paywithsats
 
 import io.flutter.embedding.android.FlutterActivity
 

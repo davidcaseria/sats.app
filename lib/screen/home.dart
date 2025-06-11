@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:animated_digit/animated_digit.dart';
@@ -5,19 +6,24 @@ import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/activity.dart';
 import 'package:sats_app/screen/onboarding.dart';
 import 'package:sats_app/screen/transact.dart';
-import 'package:sats_app/storage.dart';
 
 class HomeScreen extends StatefulWidget {
-  final WalletDatabase db;
-  final Wallet? wallet;
-  final List<Mint>? mints;
+  static Route route() {
+    if (Platform.isIOS) {
+      return CupertinoPageRoute(builder: (context) => HomeScreen());
+    }
 
-  const HomeScreen({super.key, required this.db, this.wallet, this.mints});
+    return MaterialPageRoute(builder: (context) => HomeScreen());
+  }
+
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -26,23 +32,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   Wallet? _wallet;
-  List<Mint>? _mints;
-
-  Future<Wallet> _loadWallet(String mintUrl) async {
-    final storage = AppStorage();
-    final seed = await storage.getSeed();
-    if (seed == null) {
-      throw Exception('Seed not found');
-    }
-    storage.setMintUrl(mintUrl);
-    return Wallet.newFromHexSeed(mintUrl: mintUrl, unit: 'sat', seed: seed, localstore: widget.db);
-  }
 
   @override
   void initState() {
     super.initState();
-    _wallet = widget.wallet;
-    _mints = widget.mints;
   }
 
   Widget get _page {
@@ -61,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_wallet == null) {
       return OnboardingScreen(
         onJoinMint: (mintUrl) async {
-          final wallet = await _loadWallet(mintUrl);
+          final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mintUrl);
           setState(() {
             _wallet = wallet;
           });
@@ -78,46 +71,12 @@ class _HomeScreenState extends State<HomeScreen> {
           title: _AppBarTitle(wallet: _wallet!),
           actions: [IconButton(icon: Icon(Icons.settings), onPressed: () {})],
         ),
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              DrawerHeader(
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
-                margin: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Switch Wallet', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-                    SizedBox(height: 8),
-                    Text(_wallet!.mintUrl, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
-                  ],
-                ),
-              ),
-              ...(_mints ?? []).isEmpty
-                  ? [
-                      ListTile(
-                        title: Text('No Wallets Found'),
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ]
-                  : _mints!.map((mint) {
-                      return ListTile(
-                        title: Text(mint.url),
-                        subtitle: Text('${mint.balance} sat'),
-                        onTap: () async {
-                          final wallet = await _loadWallet(mint.url);
-                          setState(() {
-                            _wallet = wallet;
-                          });
-                          Navigator.pop(context);
-                        },
-                      );
-                    }),
-            ],
-          ),
+        drawer: _Drawer(
+          onWalletSelected: (wallet) {
+            setState(() {
+              _wallet = wallet;
+            });
+          },
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
@@ -144,6 +103,63 @@ class _MenuButton extends StatelessWidget {
       icon: Icon(Icons.menu),
       onPressed: () {
         Scaffold.of(context).openDrawer();
+      },
+    );
+  }
+}
+
+class _Drawer extends StatelessWidget {
+  final Function(Wallet) onWalletSelected;
+
+  const _Drawer({required this.onWalletSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<WalletCubit, WalletState>(
+      builder: (context, state) {
+        final mints = state.mints;
+        final listViewWidgets = <Widget>[];
+        if (mints == null || mints.isEmpty) {
+          listViewWidgets.add(
+            ListTile(
+              title: Text('No Wallets Found'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+          );
+        } else {
+          for (final mint in mints) {
+            listViewWidgets.add(
+              ListTile(
+                title: Text(mint.url),
+                subtitle: Text('${mint.balance} sat'),
+                onTap: () async {
+                  final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
+                  Navigator.pop(context);
+                  onWalletSelected(wallet);
+                },
+              ),
+            );
+          }
+        }
+
+        return Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
+                margin: EdgeInsets.zero,
+                child: Text(
+                  'Switch Wallet',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+              ),
+              ...listViewWidgets,
+            ],
+          ),
+        );
       },
     );
   }
@@ -360,13 +376,18 @@ class _DepositSheetMintQuote extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(isPaid ? Icons.check_circle : Icons.pending, color: isPaid ? Theme.of(context).colorScheme.tertiary : Colors.grey, size: 20),
+                  Icon(
+                    isPaid ? Icons.check_circle : Icons.pending,
+                    color: isPaid ? Theme.of(context).colorScheme.tertiary : Colors.grey,
+                    size: 20,
+                  ),
                   SizedBox(width: 12),
                   Text(
                     isPaid ? 'Deposit Paid' : 'Deposit Pending',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: isPaid ? Theme.of(context).colorScheme.tertiary : Colors.grey, fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isPaid ? Theme.of(context).colorScheme.tertiary : Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],

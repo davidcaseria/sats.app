@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
@@ -9,12 +11,23 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:local_session_timeout/local_session_timeout.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sats_app/amplify_outputs.dart';
+import 'package:sats_app/bloc/auth.dart';
+import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/home.dart';
+import 'package:sats_app/screen/auth.dart';
 import 'package:sats_app/storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await CdkFlutter.init();
+
+  try {
+    await Amplify.addPlugin(AmplifyAuthCognito());
+    await Amplify.configure(amplifyConfig);
+  } on AmplifyException catch (e) {
+    safePrint('Error configuring Amplify: $e');
+  }
 
   final storage = AppStorage();
   var seed = await storage.getSeed();
@@ -26,17 +39,13 @@ void main() async {
   await documentsDir.create(recursive: true);
   final db = await WalletDatabase.newInstance(path: p.join(documentsDir.path, 'wallet.sqlite'));
 
-  Wallet? wallet;
-  var mintUrl = await storage.getMintUrl();
-  if (mintUrl != null) {
-    wallet = Wallet.newFromHexSeed(mintUrl: mintUrl, unit: 'sat', seed: seed, localstore: db);
-    await wallet.reclaimReserved();
-  }
-
   Bloc.observer = _AppBlocObserver();
-  final app = BlocProvider(
-    create: (_) => _AuthCubit()..authenticate(),
-    child: _App(db: db, wallet: wallet),
+  final app = MultiBlocProvider(
+    providers: [
+      BlocProvider<AuthCubit>(create: (_) => AuthCubit()..authenticate()),
+      BlocProvider<WalletCubit>(create: (_) => WalletCubit(db)..loadMints()),
+    ],
+    child: _App(db: db, wallet: null),
   );
   runApp(app);
 }
@@ -68,7 +77,7 @@ class _AppState extends State<_App> {
     _appLinkSubscription = appLinks.uriLinkStream.listen((uri) {});
     _sessionTimeoutSubscription = _sessionConfig.stream.listen((state) {
       if (mounted) {
-        context.read<_AuthCubit>().unauthenticate();
+        context.read<AuthCubit>().unauthenticate();
       }
     });
   }
@@ -87,6 +96,7 @@ class _AppState extends State<_App> {
   }
 
   Widget _buildApp() {
+    final spinner = const Center(child: CircularProgressIndicator());
     final themeData = ThemeData.from(colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange));
     if (Theme.of(context).platform == TargetPlatform.iOS) {
       return CupertinoApp(
@@ -94,78 +104,73 @@ class _AppState extends State<_App> {
         localizationsDelegates: [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate],
         navigatorKey: _navigatorKey,
         theme: MaterialBasedCupertinoThemeData(materialTheme: themeData),
-        home: HomeScreen(db: widget.db, wallet: widget.wallet),
+        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
+        home: spinner,
       );
     } else {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         navigatorKey: _navigatorKey,
         theme: themeData,
-        home: HomeScreen(db: widget.db, wallet: widget.wallet),
+        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
+        home: spinner,
       );
     }
   }
 }
 
-// class _AppListeners extends StatelessWidget {
-//   final GlobalKey<NavigatorState> navigatorKey;
-//   final Widget child;
+class _AppListeners extends StatelessWidget {
+  final GlobalKey<NavigatorState> navigatorKey;
+  final Widget child;
 
-//   const _AppListeners({required this.navigatorKey, required this.child});
+  const _AppListeners({required this.navigatorKey, required this.child});
 
-//   NavigatorState get _navigator => navigatorKey.currentState!;
+  NavigatorState get _navigator => navigatorKey.currentState!;
 
-//   @override
-//   Widget build(BuildContext context) {
-//     return BlocListener<_AuthCubit, _AuthState>(
-//       listenWhen: (previous, current) => previous != current,
-//       listener: (context, state) {
-//         if (state == _AuthState.authenticated) {
-//           _navigator.pushAndRemoveUntil(HomeScreen.route(), (route) => false);
-//         }
-//       },
-//       child: child,
-//     );
-//   }
-// }
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AuthCubit, AuthState>(
+      listenWhen: (previous, current) => previous != current,
+      listener: (context, state) {
+        if (state.status == AuthStatus.authenticated) {
+          _navigator.pushAndRemoveUntil(HomeScreen.route(), (route) => false);
+        } else {
+          _navigator.pushAndRemoveUntil(AuthScreen.route(), (route) => false);
+        }
+      },
+      child: child,
+    );
+  }
+}
 
 class _AppBlocObserver extends BlocObserver {
   @override
   void onCreate(BlocBase bloc) {
     super.onCreate(bloc);
-    print('Bloc created: ${bloc.runtimeType}');
+    safePrint('Bloc created: ${bloc.runtimeType}');
   }
 
   @override
   void onEvent(Bloc bloc, Object? event) {
     super.onEvent(bloc, event);
-    print('Event added: ${bloc.runtimeType}, $event');
+    safePrint('Event added: ${bloc.runtimeType}, $event');
   }
 
   @override
   void onTransition(Bloc bloc, dynamic transition) {
     super.onTransition(bloc, transition);
-    print('Transition: ${bloc.runtimeType}, $transition');
+    safePrint('Transition: ${bloc.runtimeType}, $transition');
   }
 
   @override
   void onError(BlocBase bloc, Object error, StackTrace stackTrace) {
     super.onError(bloc, error, stackTrace);
-    print('Error: ${bloc.runtimeType}, $error');
+    safePrint('Error: ${bloc.runtimeType}, $error');
   }
 
   @override
   void onClose(BlocBase bloc) {
     super.onClose(bloc);
-    print('Bloc closed: ${bloc.runtimeType}');
+    safePrint('Bloc closed: ${bloc.runtimeType}');
   }
 }
-
-class _AuthCubit extends Cubit<_AuthState> {
-  _AuthCubit() : super(_AuthState.unauthenticated);
-
-  void authenticate() => emit(_AuthState.authenticated);
-  void unauthenticate() => emit(_AuthState.unauthenticated);
-}
-
-enum _AuthState { authenticated, unauthenticated }
