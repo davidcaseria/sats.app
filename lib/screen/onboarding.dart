@@ -13,7 +13,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  late Future<List<MintInfo>> _mintsFuture;
+  late Future<List<_FeaturedMint>> _mintsFuture;
 
   @override
   void initState() {
@@ -21,8 +21,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _mintsFuture = _fetchMints();
   }
 
-  Future<List<MintInfo>> _fetchMints() async {
-    return Future.wait(OnboardingScreen._defaultMintUrls.map((url) => getMintInfo(mintUrl: url)));
+  Future<List<_FeaturedMint>> _fetchMints() async {
+    return Future.wait(
+      OnboardingScreen._defaultMintUrls.map((url) async {
+        final info = await getMintInfo(mintUrl: url);
+        return _FeaturedMint(url: url, info: info);
+      }),
+    );
   }
 
   void _showMintInputDialog() async {
@@ -35,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Join a Mint')),
-      body: FutureBuilder<List<MintInfo>>(
+      body: FutureBuilder<List<_FeaturedMint>>(
         future: _mintsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -47,32 +52,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           final mints = snapshot.data ?? [];
           return Padding(
             padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 76),
-            child: SearchableList<MintInfo>(
+            child: SearchableList<_FeaturedMint>(
               initialList: mints,
               filter: (query) => mints.where((mint) {
                 final lowerQuery = query.toLowerCase();
                 if (lowerQuery.isEmpty) return true;
-                if (mint.name != null && mint.name!.toLowerCase().contains(lowerQuery)) return true;
-                if (mint.urls != null && mint.urls!.any((url) => url.toLowerCase().contains(lowerQuery))) return true;
+                if (mint.info.name != null && mint.info.name!.toLowerCase().contains(lowerQuery)) return true;
+                if (mint.info.urls != null && mint.info.urls!.any((url) => url.toLowerCase().contains(lowerQuery))) {
+                  return true;
+                }
                 return false;
               }).toList(),
               itemBuilder: (mint) {
-                final name = mint.name?.toLowerCase();
-                final url = mint.urls?.map((url) => url.toLowerCase()).toList().firstOrNull;
+                final name = mint.info.name?.toLowerCase();
+                final url =
+                    mint.info.urls?.map((url) => url.toLowerCase()).toList().firstOrNull ?? mint.url.toLowerCase();
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 6),
                   child: ListTile(
-                    leading: mint.iconUrl != null
+                    leading: mint.info.iconUrl != null
                         ? Image.network(
-                            mint.iconUrl!,
+                            mint.info.iconUrl!,
                             width: 40,
                             height: 40,
                             errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet),
                           )
-                        : const Icon(Icons.account_balance_wallet),
-                    title: Text(name ?? url ?? 'Unknown Mint'),
-                    subtitle: (name == null || url == null) ? null : Text(url),
-                    onTap: (url == null) ? null : () => widget.onJoinMint(url),
+                        : const Icon(Icons.account_balance, size: 40),
+                    title: Text(name ?? url),
+                    onTap: () => widget.onJoinMint(url),
                   ),
                 );
               },
@@ -91,8 +98,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Manually Join Mint'),
+            icon: const Icon(Icons.add, size: 20),
+            label: Text('Manually Join Mint', textScaler: TextScaler.linear(1.2)),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
             onPressed: _showMintInputDialog,
           ),
         ),
@@ -122,4 +130,11 @@ Future<String?> _showMintInputDialogFunc(BuildContext context) async {
       ],
     ),
   );
+}
+
+class _FeaturedMint {
+  final String url;
+  final MintInfo info;
+
+  _FeaturedMint({required this.url, required this.info});
 }

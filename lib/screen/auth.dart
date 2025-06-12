@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_verification_code_field/flutter_verification_code_field.dart';
+import 'package:pinput/pinput.dart';
 import '../bloc/auth.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -21,42 +21,35 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  final PageController _pageController = PageController();
-  String? _signUpEmail;
   late String _title;
+  int _currentPage = 0; // 0: SignIn, 1: SignUp
 
   @override
   void initState() {
     super.initState();
-    _title = _getTitle(0);
-    _pageController.addListener(() {
-      setState(() {
-        _title = _getTitle(_pageController.page?.round() ?? 0);
-      });
+    _title = 'Sign In';
+  }
+
+  void _goToSignIn() {
+    setState(() {
+      _currentPage = 0;
+      _title = 'Sign In';
     });
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  void _goToSignUp() {
+    setState(() {
+      _currentPage = 1;
+      _title = 'Sign Up';
+    });
   }
-
-  void _goToSignUp() =>
-      _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-  void _goToSignIn() =>
-      _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-  void _goToConfirmation() =>
-      _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state.status == AuthStatus.pendingConfirmation) {
-          _goToConfirmation();
-        } else if (state.status == AuthStatus.unauthenticated || state.status == AuthStatus.initiated) {
-          _goToSignIn();
+          Navigator.of(context).pushAndRemoveUntil(_ConfirmationCodeScreen.route(), (route) => false);
         }
       },
       builder: (context, state) {
@@ -82,42 +75,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       ],
                     ),
                   ),
-                SizedBox(
-                  height: 400,
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _SignInScreen(onSignUpTap: _goToSignUp),
-                      _SignUpScreen(
-                        onSignInTap: _goToSignIn,
-                        onSignUpSuccess: (email) {
-                          setState(() => _signUpEmail = email);
-                        },
-                      ),
-                      _ConfirmationCodeScreen(email: _signUpEmail ?? ''),
-                    ],
-                  ),
-                ),
+                _currentPage == 0 ? _SignInScreen(onSignUpTap: _goToSignUp) : _SignUpScreen(onSignInTap: _goToSignIn),
               ],
             ),
           ),
         );
       },
     );
-  }
-
-  String _getTitle(int page) {
-    switch (page) {
-      case 0:
-        return 'Sign In';
-      case 1:
-        return 'Sign Up';
-      case 2:
-        return 'Confirm Code';
-      default:
-        return '';
-    }
   }
 }
 
@@ -186,8 +150,7 @@ class _SignInScreenState extends State<_SignInScreen> {
 
 class _SignUpScreen extends StatefulWidget {
   final VoidCallback onSignInTap;
-  final void Function(String email)? onSignUpSuccess;
-  const _SignUpScreen({required this.onSignInTap, this.onSignUpSuccess});
+  const _SignUpScreen({required this.onSignInTap});
 
   @override
   State<_SignUpScreen> createState() => _SignUpScreenState();
@@ -242,9 +205,6 @@ class _SignUpScreenState extends State<_SignUpScreen> {
                       username: userController.text,
                       password: passController.text,
                     );
-                    if (widget.onSignUpSuccess != null) {
-                      widget.onSignUpSuccess!(emailController.text);
-                    }
                   },
             child: isPending
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -261,8 +221,14 @@ class _SignUpScreenState extends State<_SignUpScreen> {
 }
 
 class _ConfirmationCodeScreen extends StatefulWidget {
-  final String email;
-  const _ConfirmationCodeScreen({required this.email});
+  const _ConfirmationCodeScreen();
+
+  static Route route() {
+    if (Platform.isIOS) {
+      return CupertinoPageRoute(builder: (_) => const _ConfirmationCodeScreen());
+    }
+    return MaterialPageRoute(builder: (_) => const _ConfirmationCodeScreen());
+  }
 
   @override
   State<_ConfirmationCodeScreen> createState() => _ConfirmationCodeScreenState();
@@ -274,36 +240,77 @@ class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
 
   void _submitCode() async {
     setState(() => isSubmitting = true);
-    await context.read<AuthCubit>().confirm(email: widget.email, confirmationCode: code);
+    await context.read<AuthCubit>().confirm(confirmationCode: code);
     setState(() => isSubmitting = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('Enter the verification code sent to your email'),
-        const SizedBox(height: 24),
-        VerificationCodeField(
-          length: 6,
-          onFilled: (val) => setState(() => code = val),
-          size: const Size(40, 56),
-          spaceBetween: 12,
-          matchingPattern: RegExp(r'^\\d{6}\$'),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Confirm Email'), automaticallyImplyLeading: false),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: BlocBuilder<AuthCubit, AuthState>(
+          builder: (context, state) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (state.error != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.red[100], borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error, color: Colors.red[800]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(state.error!, style: TextStyle(color: Colors.red[800])),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Text('Enter the verification code sent to your email'),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Pinput(
+                      length: 6,
+                      onCompleted: (val) => setState(() => code = val),
+                      defaultPinTheme: PinTheme(
+                        width: 40,
+                        height: 56,
+                        textStyle: const TextStyle(fontSize: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade400),
+                        ),
+                      ),
+                      separatorBuilder: (context) => const SizedBox(width: 12),
+                      keyboardType: TextInputType.number,
+                      validator: (val) => val != null && RegExp(r'^\d{6}$').hasMatch(val) ? null : '',
+                      autofocus: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: code.length == 6 && !isSubmitting ? _submitCode : null,
+                    child: isSubmitting
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Confirm'),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: code.length == 6 && !isSubmitting ? _submitCode : null,
-            child: isSubmitting
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Confirm'),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

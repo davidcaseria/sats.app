@@ -5,9 +5,13 @@ class AuthCubit extends Cubit<AuthState> {
   AuthCubit() : super(AuthState());
 
   Future<void> authenticate({String? username, String? password}) async {
-    emit(state.copyWith(status: AuthStatus.initiated, clearError: true));
+    if (state.status == AuthStatus.initiated) {
+      return;
+    }
+    emit(state.copyWith(status: AuthStatus.initiated, email: username, clearError: true));
     try {
       final result = await Amplify.Auth.fetchAuthSession();
+      safePrint('Auth session result: $result');
       if (result.isSignedIn) {
         emit(state.copyWith(status: AuthStatus.authenticated));
       }
@@ -30,31 +34,41 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  Future<void> confirm({required String email, required String confirmationCode}) async {
+  Future<void> confirm({required String confirmationCode}) async {
+    if (state.status == AuthStatus.confirmationInitiated) {
+      return;
+    }
     emit(state.copyWith(status: AuthStatus.confirmationInitiated, clearError: true));
     try {
       if (state.action == AuthAction.signIn) {
         final result = await Amplify.Auth.confirmSignIn(confirmationValue: confirmationCode);
+        safePrint('Confirm sign in result: $result');
         if (result.isSignedIn) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: 'Invalid confirmation code'));
         }
-      } else if (state.action == AuthAction.signUp) {
-        final result = await Amplify.Auth.confirmSignUp(username: email, confirmationCode: confirmationCode);
+      } else if (state.action == AuthAction.signUp && state.email != null) {
+        final result = await Amplify.Auth.confirmSignUp(username: state.email!, confirmationCode: confirmationCode);
+        safePrint('Confirm sign up result: $result');
         if (result.isSignUpComplete) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: 'Invalid confirmation code'));
         }
+      } else {
+        emit(state.copyWith(status: AuthStatus.unauthenticated));
       }
     } on AuthException catch (e) {
-      emit(state.copyWith(status: AuthStatus.unauthenticated, error: e.message));
+      emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: e.message));
     }
   }
 
   Future<void> signUp({required String email, required String username, required String password}) async {
-    emit(state.copyWith(status: AuthStatus.initiated, clearError: true));
+    if (state.status == AuthStatus.initiated) {
+      return;
+    }
+    emit(state.copyWith(status: AuthStatus.initiated, email: email, clearError: true));
     try {
       final result = await Amplify.Auth.signUp(
         username: email,
@@ -63,6 +77,7 @@ class AuthCubit extends Cubit<AuthState> {
           userAttributes: {AuthUserAttributeKey.email: email, AuthUserAttributeKey.preferredUsername: username},
         ),
       );
+      safePrint('Sign up result: $result');
       if (result.isSignUpComplete) {
         emit(state.copyWith(status: AuthStatus.authenticated));
       } else {
@@ -86,14 +101,16 @@ class AuthCubit extends Cubit<AuthState> {
 class AuthState {
   AuthStatus status = AuthStatus.unauthenticated;
   AuthAction? action;
+  String? email;
   String? error;
 
-  AuthState({this.status = AuthStatus.unauthenticated, this.action, this.error});
+  AuthState({this.status = AuthStatus.unauthenticated, this.action, this.email, this.error});
 
-  AuthState copyWith({AuthStatus? status, AuthAction? action, String? error, bool clearError = false}) {
+  AuthState copyWith({AuthStatus? status, AuthAction? action, String? email, String? error, bool clearError = false}) {
     return AuthState(
       status: status ?? this.status,
       action: action ?? this.action,
+      email: email ?? this.email,
       error: (clearError) ? null : error ?? this.error,
     );
   }
