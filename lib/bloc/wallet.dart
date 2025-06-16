@@ -27,6 +27,7 @@ class WalletCubit extends Cubit<WalletState> {
         throw Exception('Mint URL not found. Please set up your wallet first.');
       }
     }
+    storage.setMintUrl(mintUrl);
     final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', localstore: db);
     await wallet.reclaimReserved();
     final mint = await wallet.getMint();

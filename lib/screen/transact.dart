@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:sats_app/api.dart';
 import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
@@ -92,7 +94,9 @@ class _RequestDisplay extends StatelessWidget {
               children: [
                 Text(
                   'Payment Request',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.grey.shade700, fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: Colors.grey.shade700, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
                 Text(display, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
@@ -112,7 +116,11 @@ class _AmountDisplay extends StatelessWidget {
       builder: (context, state) {
         return Padding(
           padding: EdgeInsetsGeometry.only(top: 32),
-          child: Text(state.formattedSatAmount(), style: Theme.of(context).textTheme.displayMedium, textAlign: TextAlign.center),
+          child: Text(
+            state.formattedSatAmount(),
+            style: Theme.of(context).textTheme.displayMedium,
+            textAlign: TextAlign.center,
+          ),
         );
       },
     );
@@ -130,10 +138,16 @@ class _NumberPad extends StatelessWidget {
           [7, 8, 9],
         ])
           Expanded(
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: row.map((number) => _NumberButton(number)).toList()),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: row.map((number) => _NumberButton(number)).toList(),
+            ),
           ),
         Expanded(
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [_ClearButton(), _NumberButton(0), _BackspaceButton()]),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [_ClearButton(), _NumberButton(0), _BackspaceButton()],
+          ),
         ),
       ],
     );
@@ -343,10 +357,17 @@ class _ActionSheetHeader extends StatelessWidget {
           children: [
             icon,
             SizedBox(height: 8),
-            Text(state.formattedTotalSatAmount(), textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              state.formattedTotalSatAmount(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             if (state.feeAmount > BigInt.zero) ...[
               SizedBox(height: 4),
-              Text('Includes ${state.formattedFeeAmount()} Fee', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey)),
+              Text(
+                'Includes ${state.formattedFeeAmount()} Fee',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              ),
             ],
           ],
         );
@@ -433,7 +454,12 @@ class _ActionSheetMethod extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget methodButton({required IconData icon, required String label, required bool selected, required VoidCallback onTap}) {
+    Widget methodButton({
+      required IconData icon,
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -445,10 +471,17 @@ class _ActionSheetMethod extends StatelessWidget {
               height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline, width: 2),
+                border: Border.all(
+                  color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+                  width: 2,
+                ),
                 color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.15) : null,
               ),
-              child: Icon(icon, size: 28, color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).iconTheme.color),
+              child: Icon(
+                icon,
+                size: 28,
+                color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).iconTheme.color,
+              ),
             ),
           ),
           SizedBox(height: 6),
@@ -456,7 +489,9 @@ class _ActionSheetMethod extends StatelessWidget {
             onTap: onTap,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: selected ? Theme.of(context).colorScheme.primary : null),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: selected ? Theme.of(context).colorScheme.primary : null),
               textAlign: TextAlign.center,
             ),
           ),
@@ -679,9 +714,15 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
 
   List<String> _encodeQr() {
     if (widget.token != null) {
-      return encodeQrToken(token: widget.token!, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+      return encodeQrToken(
+        token: widget.token!,
+        maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]),
+      );
     } else if (widget.paymentRequest != null) {
-      return encodeQrPaymentRequest(paymentRequest: widget.paymentRequest!, maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]));
+      return encodeQrPaymentRequest(
+        paymentRequest: widget.paymentRequest!,
+        maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]),
+      );
     }
     return [];
   }
@@ -803,7 +844,8 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
             ),
           ),
           SizedBox(height: 12),
-          if (_parts.length > 1) Text('${_currentIndex + 1} of ${_parts.length}', style: Theme.of(context).textTheme.bodyMedium),
+          if (_parts.length > 1)
+            Text('${_currentIndex + 1} of ${_parts.length}', style: Theme.of(context).textTheme.bodyMedium),
           SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [speedButton, fragmentButton]),
           OutlinedButton.icon(
@@ -814,7 +856,10 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
               await SharePlus.instance.share(params);
               context.read<_TransactCubit>().sharedQrCode();
             },
-            style: OutlinedButton.styleFrom(minimumSize: Size(double.infinity, 50), textStyle: Theme.of(context).textTheme.bodyLarge),
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size(double.infinity, 50),
+              textStyle: Theme.of(context).textTheme.bodyLarge,
+            ),
             icon: Icon(Icons.share),
             label: Text('Share ${(widget.token != null) ? 'Token' : 'Request'}'),
           ),
@@ -825,6 +870,7 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
 }
 
 class _TransactCubit extends Cubit<_TransactState> {
+  final ApiService _api = ApiService();
   final Wallet wallet;
   _TransactCubit({required this.wallet}) : super(_TransactState(satAmount: BigInt.zero));
 
@@ -863,13 +909,32 @@ class _TransactCubit extends Cubit<_TransactState> {
       bitcoinAddress: (address) async {
         if (address.cashu != null) {
           final amount = address.cashu?.amount ?? address.amount;
-          emit(state.copyWith(action: (amount != null) ? _TransactAction.pay : null, satAmount: amount, paymentRequest: address.cashu));
+          emit(
+            state.copyWith(
+              action: (amount != null) ? _TransactAction.pay : null,
+              satAmount: amount,
+              paymentRequest: address.cashu,
+            ),
+          );
         } else if (address.lightning != null) {
           final request = address.lightning!.encoded;
           final meltQuote = await wallet.meltQuote(request: request);
-          emit(state.copyWith(action: _TransactAction.pay, satAmount: address.lightning!.amount, request: request, meltQuote: meltQuote));
+          emit(
+            state.copyWith(
+              action: _TransactAction.pay,
+              satAmount: address.lightning!.amount,
+              request: request,
+              meltQuote: meltQuote,
+            ),
+          );
         } else {
-          emit(state.copyWith(action: (address.amount != null) ? _TransactAction.pay : null, satAmount: address.amount, request: address.address));
+          emit(
+            state.copyWith(
+              action: (address.amount != null) ? _TransactAction.pay : null,
+              satAmount: address.amount,
+              request: address.address,
+            ),
+          );
         }
       },
       bolt11Invoice: (invoice) async {
@@ -931,9 +996,22 @@ class _TransactCubit extends Cubit<_TransactState> {
       await wallet.payRequest(send: state.preparedSend!, memo: state.memo ?? memo, includeMemo: state.isMemoViewable);
       emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
     } else {
-      final token = await wallet.send(send: state.preparedSend!, memo: state.memo ?? memo, includeMemo: state.isMemoViewable);
+      final token = await wallet.send(
+        send: state.preparedSend!,
+        memo: state.memo ?? memo,
+        includeMemo: state.isMemoViewable,
+      );
       switch (state.method) {
         case _TransactMethod.link:
+          try {
+            final uri = await _api.createPayLink(token: token);
+            await SharePlus.instance.share(ShareParams(uri: uri));
+            emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
+          } catch (e) {
+            safePrint('Error creating pay link: $e');
+            await wallet.reclaimSend(token: token);
+            emit(state.copyWith(actionState: _ActionState.failure, actionMsg: 'Failed to create pay link.'));
+          }
           break;
         case _TransactMethod.username:
           // TODO: Handle username payment
@@ -982,7 +1060,10 @@ class _TransactCubit extends Cubit<_TransactState> {
   void sharedQrCode() {
     emit(
       state
-          .copyWith(actionState: _ActionState.success, actionMsg: (state.action == _TransactAction.pay) ? 'Payment sent!' : 'Request sent!')
+          .copyWith(
+            actionState: _ActionState.success,
+            actionMsg: (state.action == _TransactAction.pay) ? 'Payment sent!' : 'Request sent!',
+          )
           .clearTransaction(),
     );
   }

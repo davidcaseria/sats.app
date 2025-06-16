@@ -1,4 +1,4 @@
-import { defineAuth } from '@aws-amplify/backend';
+import { defineAuth, defineFunction } from '@aws-amplify/backend';
 
 export const auth = defineAuth({
   loginWith: {
@@ -12,5 +12,9 @@ export const auth = defineAuth({
     phoneNumber: {
       required: false
     },
-  }
+    'custom:pubkey': {
+      dataType: 'String',
+      mutable: false,
+    }
+  },
 });

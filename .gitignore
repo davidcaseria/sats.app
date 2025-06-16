@@ -49,3 +49,9 @@ node_modules
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+# OpenAPI Client
+api_client/
+
+# Local environment file
+.env

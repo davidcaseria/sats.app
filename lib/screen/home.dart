@@ -31,11 +31,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _isLoading = true;
   Wallet? _wallet;
 
-  @override
-  void initState() {
-    super.initState();
+  Future<void> _loadWallet({String? mintUrl}) async {
+    try {
+      final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mintUrl);
+      setState(() {
+        _wallet = wallet;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Widget get _page {
@@ -50,14 +60,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadWallet();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+
     if (_wallet == null) {
       return OnboardingScreen(
         onJoinMint: (mintUrl) async {
-          final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mintUrl);
-          setState(() {
-            _wallet = wallet;
-          });
+          await _loadWallet(mintUrl: mintUrl);
         },
       );
     }

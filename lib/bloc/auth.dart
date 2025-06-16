@@ -14,6 +14,7 @@ class AuthCubit extends Cubit<AuthState> {
       safePrint('Auth session result: $result');
       if (result.isSignedIn) {
         emit(state.copyWith(status: AuthStatus.authenticated));
+        return;
       }
 
       if (username != null) {

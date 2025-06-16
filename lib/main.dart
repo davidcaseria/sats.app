@@ -132,6 +132,7 @@ class _AppListeners extends StatelessWidget {
     return BlocListener<AuthCubit, AuthState>(
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
+        safePrint('Auth status changed: ${state.status}');
         if (state.status == AuthStatus.authenticated) {
           _navigator.pushAndRemoveUntil(HomeScreen.route(), (route) => false);
         } else if (state.status == AuthStatus.unauthenticated) {
