@@ -1,6 +1,6 @@
 name: sats_app
 description: "Sats App -- The easiest-to-use Bitcoin wallet."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -44,6 +44,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^6.0.0
   build_runner: ^2.4.15
   chopper_generator: ^8.0.0

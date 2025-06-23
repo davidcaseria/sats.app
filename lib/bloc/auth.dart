@@ -58,7 +58,7 @@ class AuthCubit extends Cubit<AuthState> {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: 'Invalid confirmation code'));
         }
       } else {
-        emit(state.copyWith(status: AuthStatus.unauthenticated));
+        safePrint('Invalid confirmation state');
       }
     } on AuthException catch (e) {
       emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: e.message));
@@ -69,7 +69,7 @@ class AuthCubit extends Cubit<AuthState> {
     if (state.status == AuthStatus.initiated) {
       return;
     }
-    emit(state.copyWith(status: AuthStatus.initiated, email: email, clearError: true));
+    emit(state.copyWith(action: AuthAction.signUp, status: AuthStatus.initiated, email: email, clearError: true));
     try {
       final result = await Amplify.Auth.signUp(
         username: email,
