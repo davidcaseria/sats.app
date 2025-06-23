@@ -7,6 +7,7 @@ import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
 import 'package:sats_app/config.dart';
+import 'package:sats_app/storage.dart';
 import 'package:uuid/uuid.dart';
 
 class ApiService {
@@ -43,7 +44,7 @@ class ApiService {
 
   DefaultApi get client => _apiClient;
 
-  Future<Uri> createPayLink({required Token token, String? payeeUserId}) async {
+  Future<Uri> createPayLink({required Token token}) async {
     final id = Uuid().v4();
     final idBytes = Uuid.parse(id);
 
@@ -51,19 +52,39 @@ class ApiService {
     final password = SecretKeyData.random(length: 8);
     final tokenSecret = await pbkdf2.deriveKey(secretKey: password, nonce: idBytes);
 
-    final algorithm = AesGcm.with128bits();
-    final nonce = algorithm.newNonce();
-    final secretBox = await algorithm.encrypt(token.raw!.toList(), secretKey: tokenSecret, nonce: nonce);
-    final encryptedToken = base64Encode(nonce + secretBox.cipherText);
-    safePrint('Encrypted Token: $encryptedToken');
+    await _storeToken(token: token, tokenSecret: tokenSecret, id: id);
 
-    final tokenRequest = TokenRequestBuilder()
-      ..encryptedToken = encryptedToken
-      ..payeeUserId = payeeUserId;
-    await _apiClient.storeToken(id: id, tokenRequest: tokenRequest.build());
     final urlId = base64UrlEncode(idBytes).replaceAll('=', '');
     final urlPassword = base64UrlEncode(password.bytes).replaceAll('=', '');
     final uri = Uri.parse('${AppConfig.payLinkBaseUrl}/t/$urlId#$urlPassword');
     return uri;
+  }
+
+  Future<void> sendToUser({required Token token, required String payeeUserId, required String payeePubKey}) async {
+    final seed = await AppStorage().getSeed();
+    final sharedSecretHex = deriveSharedSecret(secret: seed!, pubKey: payeePubKey);
+    final tokenSecret = SecretKeyData(keyHexToBytes(key: sharedSecretHex));
+    await _storeToken(token: token, tokenSecret: tokenSecret, payeeUserId: payeeUserId);
+  }
+
+  Future<void> _storeToken({
+    required Token token,
+    required SecretKey tokenSecret,
+    String? id,
+    String? payeeUserId,
+  }) async {
+    final tokenId = id ?? Uuid().v4();
+
+    final algorithm = AesGcm.with128bits();
+    final nonce = algorithm.newNonce();
+    final secretBox = await algorithm.encrypt(token.raw!.toList(), secretKey: tokenSecret, nonce: nonce);
+
+    // Concatenate nonce + cipherText + mac for encoding
+    final encryptedToken = base64Encode(nonce + secretBox.cipherText + secretBox.mac.bytes);
+
+    final tokenRequest = TokenRequestBuilder()
+      ..encryptedToken = encryptedToken
+      ..payeeUserId = payeeUserId;
+    await _apiClient.storeToken(id: tokenId, tokenRequest: tokenRequest.build());
   }
 }

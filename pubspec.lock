@@ -274,7 +274,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: a17f30cf2d296714da8ad4b06c4f4057de1cf73b
+      resolved-ref: "5525a057d60285a020f66ec394a21a1c393017bc"
       url: "https://github.com/davidcaseria/cdk_flutter.git"
     source: git
     version: "0.0.1"

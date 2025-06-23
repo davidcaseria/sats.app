@@ -1,5 +1,5 @@
 name: sats_app
-description: "Open Cash Association's Sats App -- An easy-to-use wallet for Bitcoin e-cash wallet."
+description: "Sats App -- The easiest-to-use Bitcoin wallet."
 publish_to: 'none'
 version: 1.0.0+1
 

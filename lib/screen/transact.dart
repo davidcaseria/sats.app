@@ -961,7 +961,7 @@ class _TransactCubit extends Cubit<_TransactState> {
           );
           emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Received $amount sat.'));
         } catch (e) {
-          print('Error receiving token: $e');
+          safePrint('Error receiving token: $e');
           emit(state.copyWith(actionState: _ActionState.failure, actionMsg: 'Failed to receive token.'));
         }
       },
