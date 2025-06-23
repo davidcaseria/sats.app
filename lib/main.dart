@@ -134,7 +134,7 @@ class _AppListeners extends StatelessWidget {
       listener: (context, state) {
         safePrint('Auth status changed: ${state.status}');
         if (state.status == AuthStatus.authenticated) {
-          _navigator.pushAndRemoveUntil(HomeScreen.route(), (route) => false);
+          _navigator.pushAndRemoveUntil(HomeScreen.route(hideTransition: state.action == null), (route) => false);
         } else if (state.status == AuthStatus.unauthenticated) {
           _navigator.pushAndRemoveUntil(AuthScreen.route(), (route) => false);
         }

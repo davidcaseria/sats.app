@@ -15,7 +15,11 @@ import 'package:sats_app/screen/onboarding.dart';
 import 'package:sats_app/screen/transact.dart';
 
 class HomeScreen extends StatefulWidget {
-  static Route route() {
+  static Route route({bool hideTransition = false}) {
+    if (hideTransition) {
+      return PageRouteBuilder(pageBuilder: (context, _, _) => const HomeScreen(), transitionDuration: Duration.zero);
+    }
+
     if (Platform.isIOS) {
       return CupertinoPageRoute(builder: (context) => HomeScreen());
     }

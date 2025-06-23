@@ -11,7 +11,6 @@ class AuthCubit extends Cubit<AuthState> {
     emit(state.copyWith(status: AuthStatus.initiated, email: username, clearError: true));
     try {
       final result = await Amplify.Auth.fetchAuthSession();
-      safePrint('Auth session result: $result');
       if (result.isSignedIn) {
         emit(state.copyWith(status: AuthStatus.authenticated));
         return;
@@ -19,7 +18,6 @@ class AuthCubit extends Cubit<AuthState> {
 
       if (username != null) {
         final result = await Amplify.Auth.signIn(username: username, password: password);
-        safePrint('Sign in result: $result');
         if (result.isSignedIn) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
@@ -43,7 +41,6 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       if (state.action == AuthAction.signIn) {
         final result = await Amplify.Auth.confirmSignIn(confirmationValue: confirmationCode);
-        safePrint('Confirm sign in result: $result');
         if (result.isSignedIn) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else {
@@ -51,7 +48,6 @@ class AuthCubit extends Cubit<AuthState> {
         }
       } else if (state.action == AuthAction.signUp && state.email != null) {
         final result = await Amplify.Auth.confirmSignUp(username: state.email!, confirmationCode: confirmationCode);
-        safePrint('Confirm sign up result: $result');
         if (result.isSignUpComplete) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else {
@@ -78,7 +74,6 @@ class AuthCubit extends Cubit<AuthState> {
           userAttributes: {AuthUserAttributeKey.email: email, AuthUserAttributeKey.preferredUsername: username},
         ),
       );
-      safePrint('Sign up result: $result');
       if (result.isSignUpComplete) {
         emit(state.copyWith(status: AuthStatus.authenticated));
       } else {
