@@ -60,6 +60,11 @@ class ApiService {
     return uri;
   }
 
+  Future<List<UserResponse>> searchUsers({required String query}) async {
+    final response = await _apiClient.searchUsers(s: query);
+    return response.data!.toList();
+  }
+
   Future<void> sendToUser({required Token token, required String payeeUserId, required String payeePubKey}) async {
     final seed = await AppStorage().getSeed();
     final sharedSecretHex = deriveSharedSecret(secret: seed!, pubKey: payeePubKey);

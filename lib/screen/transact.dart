@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
+import 'package:api_client/api_client.dart' hide PaymentRequest;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -419,8 +420,8 @@ class _ActionSheetConfirmationState extends State<_ActionSheetConfirmation> {
                 ),
               ),
               _ActionSheetUsernameSearch(
-                onSelected: (username) {
-                  context.read<_TransactCubit>().selectUsername(username);
+                onSelected: (user) {
+                  context.read<_TransactCubit>().selectUser(user);
                   hideUsernameSearch();
                 },
                 onCancel: hideUsernameSearch,
@@ -500,7 +501,7 @@ class _ActionSheetMethod extends StatelessWidget {
     }
 
     return BlocBuilder<_TransactCubit, _TransactState>(
-      buildWhen: (previous, current) => previous.method != current.method || previous.username != current.username,
+      buildWhen: (previous, current) => previous.method != current.method || previous.user?.id != current.user?.id,
       builder: (context, state) => Padding(
         padding: EdgeInsetsGeometry.only(bottom: 12),
         child: Column(
@@ -530,7 +531,7 @@ class _ActionSheetMethod extends StatelessWidget {
               duration: Duration(milliseconds: 150),
               child: IgnorePointer(
                 ignoring: state.method != _TransactMethod.username,
-                child: _ActionSheetUsernameInput(username: state.username, onTap: onShowUsernameSearch),
+                child: _ActionSheetUsernameInput(user: state.user, onTap: onShowUsernameSearch),
               ),
             ),
           ],
@@ -548,14 +549,14 @@ class _ActionSheetMethodType {
 }
 
 class _ActionSheetUsernameInput extends StatelessWidget {
-  final String? username;
+  final UserResponse? user;
   final VoidCallback? onTap;
 
-  const _ActionSheetUsernameInput({this.username, this.onTap});
+  const _ActionSheetUsernameInput({this.user, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (username == null) {
+    if (user == null) {
       return TextButton.icon(icon: Icon(Icons.person_add), label: Text('Search username'), onPressed: onTap);
     }
     return InkWell(
@@ -565,7 +566,7 @@ class _ActionSheetUsernameInput extends StatelessWidget {
         children: [
           CircleAvatar(child: Icon(Icons.person)),
           SizedBox(width: 16),
-          Text(username!, style: Theme.of(context).textTheme.bodyLarge),
+          Text(user!.username, style: Theme.of(context).textTheme.bodyLarge),
         ],
       ),
     );
@@ -573,49 +574,40 @@ class _ActionSheetUsernameInput extends StatelessWidget {
 }
 
 class _ActionSheetUsernameSearch extends StatelessWidget {
-  final void Function(String username) onSelected;
+  final _api = ApiService();
+  final TextEditingController _controller = TextEditingController();
+  final void Function(UserResponse user) onSelected;
   final VoidCallback onCancel;
 
-  // For demonstration, a static list of usernames. Replace with your actual data source.
-  final List<String> usernames = const [
-    'alice',
-    'bob',
-    'charlie',
-    'david',
-    'eve',
-    'frank',
-    'grace',
-    'heidi',
-    'ivan',
-    'judy',
-    'mallory',
-    'oscar',
-    'peggy',
-    'trent',
-    'victor',
-    'walter',
-  ];
-
-  const _ActionSheetUsernameSearch({required this.onSelected, required this.onCancel});
+  _ActionSheetUsernameSearch({required this.onSelected, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsetsGeometry.only(left: 8, right: 8),
-      child: SearchableList<String>(
-        initialList: usernames,
-        filter: (query) => usernames.where((u) => u.toLowerCase().contains(query.toLowerCase())).toList(),
-        itemBuilder: (username) => ListTile(
+      child: SearchableList<UserResponse>.async(
+        searchTextController: _controller,
+        asyncListCallback: () => _api.searchUsers(query: _controller.text),
+        asyncListFilter: (q, list) =>
+            list.where((user) => user.username.toLowerCase().contains(q.toLowerCase())).toList(),
+        itemBuilder: (user) => ListTile(
           leading: CircleAvatar(child: Icon(Icons.person)),
-          title: Text(username),
-          onTap: () => onSelected(username),
+          title: Text(user.username),
+          onTap: () => onSelected(user),
         ),
         inputDecoration: InputDecoration(
           hintText: 'Search username',
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           prefixIcon: Icon(Icons.search),
         ),
+        loadingWidget: Center(child: CircularProgressIndicator()),
         emptyWidget: Center(child: Text('No users found')),
+        errorWidget: Center(
+          child: Text(
+            'Error loading users',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.red),
+          ),
+        ),
       ),
     );
   }
@@ -666,7 +658,7 @@ class _ActionSheetButton extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.all(24),
           child: ElevatedButton(
-            onPressed: (state.method == _TransactMethod.username && state.username == null)
+            onPressed: (state.method == _TransactMethod.username && state.user == null)
                 ? null
                 : () {
                     if (state.isPayAction()) {
@@ -1014,8 +1006,7 @@ class _TransactCubit extends Cubit<_TransactState> {
           }
           break;
         case _TransactMethod.username:
-          // TODO: Handle username payment
-          await Future.delayed(Duration(milliseconds: 300)); // Simulate delay for username payment
+          await _api.sendToUser(token: token, payeeUserId: state.user!.id, payeePubKey: state.user!.pubkey);
           emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
           break;
         case _TransactMethod.qrCode:
@@ -1053,8 +1044,8 @@ class _TransactCubit extends Cubit<_TransactState> {
     }
   }
 
-  void selectUsername(String username) {
-    emit(state.copyWith(username: username));
+  void selectUser(UserResponse user) {
+    emit(state.copyWith(user: user));
   }
 
   void sharedQrCode() {
@@ -1080,7 +1071,7 @@ class _TransactState {
   final BigInt satAmount;
   final _TransactAction? action;
   final _TransactMethod method;
-  final String? username;
+  final UserResponse? user;
   final String? request;
   final MeltQuote? meltQuote;
   final PaymentRequest? paymentRequest;
@@ -1095,7 +1086,7 @@ class _TransactState {
     required this.satAmount,
     this.action,
     this.method = _TransactMethod.link,
-    this.username,
+    this.user,
     this.request,
     this.meltQuote,
     this.paymentRequest,
@@ -1119,7 +1110,7 @@ class _TransactState {
     BigInt? satAmount,
     _TransactAction? action,
     _TransactMethod? method,
-    String? username,
+    UserResponse? user,
     String? request,
     MeltQuote? meltQuote,
     PaymentRequest? paymentRequest,
@@ -1134,7 +1125,7 @@ class _TransactState {
       satAmount: satAmount ?? this.satAmount,
       action: action ?? this.action,
       method: method ?? this.method,
-      username: username ?? this.username,
+      user: user ?? this.user,
       request: request ?? this.request,
       meltQuote: meltQuote ?? this.meltQuote,
       paymentRequest: paymentRequest ?? this.paymentRequest,
