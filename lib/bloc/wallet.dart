@@ -42,6 +42,14 @@ class WalletState {
 
   WalletState({this.currentMint, this.mints});
 
+  String? get currentMintUrl {
+    return currentMint?.url;
+  }
+
+  List<String> get mintUrls {
+    return mints?.map((m) => m.url).toList() ?? [];
+  }
+
   WalletState copyWith({Mint? currentMint, List<Mint>? mints}) {
     return WalletState(currentMint: currentMint ?? this.currentMint, mints: mints ?? this.mints);
   }

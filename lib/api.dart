@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
-import 'package:api_client/api_client.dart';
+import 'package:api_client/api_client.dart' hide PaymentRequest;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
@@ -52,12 +52,24 @@ class ApiService {
     final password = SecretKeyData.random(length: 8);
     final tokenSecret = await pbkdf2.deriveKey(secretKey: password, nonce: idBytes);
 
-    await _storeToken(token: token, tokenSecret: tokenSecret, id: id);
+    await _sendToken(token: token, tokenSecret: tokenSecret, id: id);
 
     final urlId = base64UrlEncode(idBytes).replaceAll('=', '');
     final urlPassword = base64UrlEncode(password.bytes).replaceAll('=', '');
-    final uri = Uri.parse('${AppConfig.payLinkBaseUrl}/t/$urlId#$urlPassword');
+    final uri = Uri.parse('${AppConfig.linkBaseUrl}/t/$urlId#$urlPassword');
     return uri;
+  }
+
+  Future<Uri> createRequestLink({required PaymentRequest request}) async {
+    final res = await _sendRequest(request: request);
+    final id = res.id;
+    final uri = Uri.parse('${AppConfig.linkBaseUrl}/r/$id');
+    return uri;
+  }
+
+  Future<List<PaymentRequestResponse>> listPaymentRequests() async {
+    final response = await _apiClient.listPaymentRequests(f: UserPayFilter.payer);
+    return response.data!.toList();
   }
 
   Future<List<UserResponse>> searchUsers({required String query}) async {
@@ -65,14 +77,26 @@ class ApiService {
     return response.data!.toList();
   }
 
-  Future<void> sendToUser({required Token token, required String payeeUserId, required String payeePubKey}) async {
+  Future<void> sendRequestToUser({required PaymentRequest request, required String payerUserId}) async {
+    await _sendRequest(request: request, payerUserId: payerUserId);
+  }
+
+  Future<void> sendTokenToUser({required Token token, required String payeeUserId, required String payeePubKey}) async {
     final seed = await AppStorage().getSeed();
     final sharedSecretHex = deriveSharedSecret(secret: seed!, pubKey: payeePubKey);
     final tokenSecret = SecretKeyData(keyHexToBytes(key: sharedSecretHex));
-    await _storeToken(token: token, tokenSecret: tokenSecret, payeeUserId: payeeUserId);
+    await _sendToken(token: token, tokenSecret: tokenSecret, payeeUserId: payeeUserId);
   }
 
-  Future<void> _storeToken({
+  Future<PaymentRequestResponse> _sendRequest({required PaymentRequest request, String? payerUserId}) async {
+    final req = PaymentRequestBuilder()
+      ..encoded = request.encode()
+      ..payerUserId = payerUserId;
+    final response = await _apiClient.createPaymentRequest(paymentRequest: req.build());
+    return response.data!;
+  }
+
+  Future<void> _sendToken({
     required Token token,
     required SecretKey tokenSecret,
     String? id,

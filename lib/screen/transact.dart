@@ -448,7 +448,7 @@ class _ActionSheetMethod extends StatelessWidget {
     _ActionSheetMethodType(icon: Icons.link, label: 'Link', method: _TransactMethod.link),
     _ActionSheetMethodType(icon: Icons.person, label: 'Username', method: _TransactMethod.username),
     _ActionSheetMethodType(icon: Icons.qr_code, label: 'QR Code', method: _TransactMethod.qrCode),
-    _ActionSheetMethodType(icon: Icons.contactless, label: 'NFC', method: _TransactMethod.nfc),
+    _ActionSheetMethodType(icon: Icons.contactless, label: 'NFC', method: _TransactMethod.nfc, isDisabled: true),
   ];
 
   const _ActionSheetMethod({this.onShowUsernameSearch});
@@ -459,13 +459,17 @@ class _ActionSheetMethod extends StatelessWidget {
       required IconData icon,
       required String label,
       required bool selected,
-      required VoidCallback onTap,
+      required bool isDisabled,
+      required VoidCallback? onTap,
     }) {
+      final colorScheme = Theme.of(context).colorScheme;
+      final iconThemeColor = Theme.of(context).iconTheme.color;
+      final disabledColor = Colors.grey.shade400;
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            onTap: onTap,
+            onTap: isDisabled ? null : onTap,
             borderRadius: BorderRadius.circular(32),
             child: Container(
               width: 48,
@@ -473,26 +477,26 @@ class _ActionSheetMethod extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline,
+                  color: isDisabled ? disabledColor : (selected ? colorScheme.primary : colorScheme.outline),
                   width: 2,
                 ),
-                color: selected ? Theme.of(context).colorScheme.primary.withOpacity(0.15) : null,
+                color: isDisabled ? Colors.grey.shade100 : (selected ? colorScheme.primary.withOpacity(0.15) : null),
               ),
               child: Icon(
                 icon,
                 size: 28,
-                color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).iconTheme.color,
+                color: isDisabled ? disabledColor : (selected ? colorScheme.primary : iconThemeColor),
               ),
             ),
           ),
           SizedBox(height: 6),
           GestureDetector(
-            onTap: onTap,
+            onTap: isDisabled ? null : onTap,
             child: Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: selected ? Theme.of(context).colorScheme.primary : null),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDisabled ? disabledColor : (selected ? colorScheme.primary : null),
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -519,9 +523,12 @@ class _ActionSheetMethod extends StatelessWidget {
                   icon: m.icon,
                   label: m.label,
                   selected: state.method == m.method,
-                  onTap: () {
-                    context.read<_TransactCubit>().selectMethod(m.method);
-                  },
+                  isDisabled: m.isDisabled,
+                  onTap: m.isDisabled
+                      ? null
+                      : () {
+                          context.read<_TransactCubit>().selectMethod(m.method);
+                        },
                 );
               }).toList(),
             ),
@@ -545,7 +552,13 @@ class _ActionSheetMethodType {
   final IconData icon;
   final String label;
   final _TransactMethod method;
-  const _ActionSheetMethodType({required this.icon, required this.label, required this.method});
+  final bool isDisabled;
+  const _ActionSheetMethodType({
+    required this.icon,
+    required this.label,
+    required this.method,
+    this.isDisabled = false,
+  });
 }
 
 class _ActionSheetUsernameInput extends StatelessWidget {
@@ -681,7 +694,7 @@ class _ActionSheetButton extends StatelessWidget {
   }
 }
 
-class _ActionSheetQrCode extends StatefulWidget {
+class _ActionSheetQrCode extends StatelessWidget {
   final Token? token;
   final PaymentRequest? paymentRequest;
 
@@ -689,10 +702,69 @@ class _ActionSheetQrCode extends StatefulWidget {
     : assert(token != null || paymentRequest != null, 'Either token or paymentRequest must be provided');
 
   @override
-  State<_ActionSheetQrCode> createState() => _ActionSheetQrCodeState();
+  Widget build(BuildContext context) {
+    if (paymentRequest != null) {
+      return _ActionSheetStaticQrCode(paymentRequest: paymentRequest!);
+    } else if (token != null) {
+      return _ActionSheetAnimatedQrCode(token: token!);
+    }
+    return SizedBox.shrink();
+  }
 }
 
-class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
+class _ActionSheetStaticQrCode extends StatelessWidget {
+  final PaymentRequest paymentRequest;
+  static const double _qrSize = 300.0;
+
+  const _ActionSheetStaticQrCode({required this.paymentRequest});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Scan QR Code', style: Theme.of(context).textTheme.headlineSmall),
+          SizedBox(height: 16),
+          SizedBox(
+            height: _qrSize,
+            width: _qrSize,
+            child: QrImageView(data: paymentRequest.encode(), size: _qrSize),
+          ),
+          SizedBox(height: 12),
+          SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final params = ShareParams(
+                uri: Uri(scheme: 'cashu', path: paymentRequest.encode()),
+              );
+              await SharePlus.instance.share(params);
+              context.read<_TransactCubit>().sharedQrCode();
+            },
+            style: OutlinedButton.styleFrom(
+              minimumSize: Size(double.infinity, 50),
+              textStyle: Theme.of(context).textTheme.bodyLarge,
+            ),
+            icon: Icon(Icons.share),
+            label: Text('Share Request'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionSheetAnimatedQrCode extends StatefulWidget {
+  final Token token;
+
+  const _ActionSheetAnimatedQrCode({required this.token});
+
+  @override
+  State<_ActionSheetAnimatedQrCode> createState() => _ActionSheetAnimatedQrCodeState();
+}
+
+class _ActionSheetAnimatedQrCodeState extends State<_ActionSheetAnimatedQrCode> {
   int _currentIndex = 0;
   int _currentSpeedIdx = 0;
   int _currentFragmentLengthIdx = 2;
@@ -705,18 +777,10 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
   static const List<int> _fragmentLengths = [50, 100, 150]; // Small, Medium, Large
 
   List<String> _encodeQr() {
-    if (widget.token != null) {
-      return encodeQrToken(
-        token: widget.token!,
-        maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]),
-      );
-    } else if (widget.paymentRequest != null) {
-      return encodeQrPaymentRequest(
-        paymentRequest: widget.paymentRequest!,
-        maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]),
-      );
-    }
-    return [];
+    return encodeQrToken(
+      token: widget.token,
+      maxFragmentLength: BigInt.from(_fragmentLengths[_currentFragmentLengthIdx]),
+    );
   }
 
   @override
@@ -843,7 +907,7 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
           OutlinedButton.icon(
             onPressed: () async {
               final params = ShareParams(
-                uri: Uri(scheme: 'cashu', path: widget.token?.encoded ?? widget.paymentRequest!.encode()),
+                uri: Uri(scheme: 'cashu', path: widget.token.encoded),
               );
               await SharePlus.instance.share(params);
               context.read<_TransactCubit>().sharedQrCode();
@@ -853,7 +917,7 @@ class _ActionSheetQrCodeState extends State<_ActionSheetQrCode> {
               textStyle: Theme.of(context).textTheme.bodyLarge,
             ),
             icon: Icon(Icons.share),
-            label: Text('Share ${(widget.token != null) ? 'Token' : 'Request'}'),
+            label: Text('Share Token'),
           ),
         ],
       ),
@@ -1006,7 +1070,7 @@ class _TransactCubit extends Cubit<_TransactState> {
           }
           break;
         case _TransactMethod.username:
-          await _api.sendToUser(token: token, payeeUserId: state.user!.id, payeePubKey: state.user!.pubkey);
+          await _api.sendTokenToUser(token: token, payeeUserId: state.user!.id, payeePubKey: state.user!.pubkey);
           emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Payment sent!').clearTransaction());
           break;
         case _TransactMethod.qrCode:
@@ -1028,13 +1092,17 @@ class _TransactCubit extends Cubit<_TransactState> {
       unit: 'sat',
       singleUse: true,
       description: state.memo,
-      transports: [Transport(type: TransportType.httpPost, target: 'https://satsapp.link/pay-request/$id')],
+      transports: [Transport(type: TransportType.httpPost, target: 'https://pay.satsapp.link/$id')],
     );
 
     switch (state.method) {
       case _TransactMethod.link:
+        final uri = await _api.createRequestLink(request: paymentRequest);
+        await SharePlus.instance.share(ShareParams(uri: uri));
+        emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Request sent!').clearTransaction());
         break;
       case _TransactMethod.username:
+        _api.sendRequestToUser(request: paymentRequest, payerUserId: state.user!.id);
         break;
       case _TransactMethod.qrCode:
         emit(state.copyWith(paymentRequest: paymentRequest));
