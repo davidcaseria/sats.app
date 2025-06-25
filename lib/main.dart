@@ -16,7 +16,6 @@ import 'package:sats_app/bloc/user.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/home.dart';
 import 'package:sats_app/screen/auth.dart';
-import 'package:sats_app/storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,12 +28,6 @@ void main() async {
     safePrint('Error configuring Amplify: $e');
   }
 
-  final storage = AppStorage();
-  var seed = await storage.getSeed();
-  if (seed == null) {
-    seed = generateHexSeed();
-    await storage.setSeed(seed);
-  }
   final documentsDir = await getApplicationDocumentsDirectory();
   await documentsDir.create(recursive: true);
   final db = await WalletDatabase.newInstance(path: p.join(documentsDir.path, 'wallet.sqlite'));

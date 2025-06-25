@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pinput/pinput.dart';
 import '../bloc/user.dart';
@@ -22,12 +23,12 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   late String _title;
-  int _currentPage = 0; // 0: SignIn, 1: SignUp
+  int _currentPage = 1; // 0: SignIn, 1: SignUp
 
   @override
   void initState() {
     super.initState();
-    _title = 'Sign In';
+    _title = 'Sign Up';
   }
 
   void _goToSignIn() {
@@ -96,6 +97,7 @@ class _SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<_SignInScreen> {
   final TextEditingController userController = TextEditingController();
   final TextEditingController passController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -113,13 +115,40 @@ class _SignInScreenState extends State<_SignInScreen> {
         TextField(
           controller: userController,
           decoration: const InputDecoration(labelText: 'Email or Username'),
+          autofillHints: const [AutofillHints.email, AutofillHints.username],
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          autocorrect: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Prevent spaces
+          ],
           enabled: !isPending,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: passController,
-          decoration: const InputDecoration(labelText: 'Password'),
-          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            suffixIcon: IconButton(
+              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+              onPressed: isPending
+                  ? null
+                  : () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+            ),
+          ),
+          autofillHints: const [AutofillHints.password],
+          textInputAction: TextInputAction.done,
+          autocorrect: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Prevent spaces
+          ],
+          keyboardType: TextInputType.visiblePassword,
+          textCapitalization: TextCapitalization.none,
+          obscureText: _obscurePassword,
           enabled: !isPending,
         ),
         const SizedBox(height: 24),
@@ -160,6 +189,7 @@ class _SignUpScreenState extends State<_SignUpScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController userController = TextEditingController();
   final TextEditingController passController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -178,19 +208,54 @@ class _SignUpScreenState extends State<_SignUpScreen> {
         TextField(
           controller: emailController,
           decoration: const InputDecoration(labelText: 'Email'),
+          autofillHints: const [AutofillHints.email],
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          autocorrect: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Prevent spaces
+          ],
           enabled: !isPending,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: userController,
           decoration: const InputDecoration(labelText: 'Username'),
+          autofillHints: const [AutofillHints.username],
+          keyboardType: TextInputType.text,
+          textInputAction: TextInputAction.next,
+          autocorrect: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_.-]')), // Allow common username chars
+            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Prevent spaces
+          ],
           enabled: !isPending,
         ),
         const SizedBox(height: 16),
         TextField(
           controller: passController,
-          decoration: const InputDecoration(labelText: 'Password'),
-          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            suffixIcon: IconButton(
+              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+              onPressed: isPending
+                  ? null
+                  : () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+            ),
+          ),
+          autofillHints: const [AutofillHints.newPassword],
+          textInputAction: TextInputAction.done,
+          autocorrect: false,
+          inputFormatters: [
+            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Prevent spaces
+          ],
+          keyboardType: TextInputType.visiblePassword,
+          textCapitalization: TextCapitalization.none,
+          obscureText: _obscurePassword,
           enabled: !isPending,
         ),
         const SizedBox(height: 24),

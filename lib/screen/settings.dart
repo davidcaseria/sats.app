@@ -36,7 +36,17 @@ class SettingsScreen extends StatelessWidget {
                   builder: (context, state) {
                     return CircleAvatar(
                       radius: 48,
-                      backgroundImage: NetworkImage('${AppConfig.apiBaseUrl}/users/${state.id}/picture'),
+                      backgroundColor: Colors.grey[200],
+                      child: ClipOval(
+                        child: Image.network(
+                          '${AppConfig.apiBaseUrl}/users/${state.id}/picture',
+                          fit: BoxFit.cover,
+                          width: 96,
+                          height: 96,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Icon(Icons.person, size: 64, color: Colors.grey[500]),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -93,13 +103,13 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 32),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.secondary,
-              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-              side: BorderSide(color: Theme.of(context).colorScheme.secondary),
+              foregroundColor: Theme.of(context).colorScheme.onTertiary,
+              backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+              side: BorderSide(color: Theme.of(context).colorScheme.tertiary),
               minimumSize: const Size.fromHeight(48),
             ),
-            icon: Icon(Icons.key, color: Theme.of(context).colorScheme.secondary),
-            label: Text('Export Seed', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+            icon: Icon(Icons.key, color: Theme.of(context).colorScheme.tertiary),
+            label: Text('Export Seed', style: TextStyle(color: Theme.of(context).colorScheme.onTertiary)),
             onPressed: () {
               Navigator.of(context).push(_ExportSeedScreen.route());
             },
@@ -107,13 +117,13 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 16),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
               backgroundColor: Theme.of(context).colorScheme.errorContainer,
               side: BorderSide(color: Theme.of(context).colorScheme.error),
               minimumSize: const Size.fromHeight(48),
             ),
             icon: Icon(Icons.delete_forever, color: Theme.of(context).colorScheme.error),
-            label: Text('Remove Account', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            label: Text('Remove Account', style: TextStyle(color: Theme.of(context).colorScheme.onError)),
             onPressed: () {
               _showRemoveAccountDialog(context);
             },
@@ -236,7 +246,7 @@ class _ExportSeedScreenState extends State<_ExportSeedScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.save_alt),
-                      label: const Text('Save as File'),
+                      label: const Text('Save as File', textScaler: TextScaler.linear(1.2)),
                       onPressed: _shareMnemonic,
                     ),
                   ),

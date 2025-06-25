@@ -1,4 +1,5 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sats_app/storage.dart';
 
@@ -10,11 +11,10 @@ class UserCubit extends Cubit<UserState> {
     if (state.status == AuthStatus.initiated) {
       return;
     }
-    emit(state.copyWith(status: AuthStatus.initiated, email: username, clearError: true));
+    emit(state.copyWith(status: AuthStatus.initiated, username: username, clearError: true));
     try {
       final result = await Amplify.Auth.fetchAuthSession();
       if (result.isSignedIn) {
-        safePrint('User is already authenticated');
         await fetchUserAttributes();
         await fetchUserSettings();
         emit(state.copyWith(status: AuthStatus.authenticated));
@@ -25,7 +25,7 @@ class UserCubit extends Cubit<UserState> {
           await fetchUserSettings();
           emit(state.copyWith(status: AuthStatus.authenticated, action: AuthAction.signIn));
         } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
-          emit(state.copyWith(status: AuthStatus.pendingConfirmation, action: AuthAction.signUp));
+          emit(state.copyWith(status: AuthStatus.pendingConfirmation, action: AuthAction.signUp, username: username));
         } else {
           emit(state.copyWith(status: AuthStatus.unauthenticated, error: 'Authentication failed'));
         }
@@ -50,8 +50,8 @@ class UserCubit extends Cubit<UserState> {
         } else {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: 'Invalid confirmation code'));
         }
-      } else if (state.action == AuthAction.signUp && state.email != null) {
-        final result = await Amplify.Auth.confirmSignUp(username: state.email!, confirmationCode: confirmationCode);
+      } else if (state.action == AuthAction.signUp && state.username != null) {
+        final result = await Amplify.Auth.confirmSignUp(username: state.username!, confirmationCode: confirmationCode);
         if (result.isSignUpComplete) {
           emit(state.copyWith(status: AuthStatus.authenticated));
         } else {
@@ -68,7 +68,6 @@ class UserCubit extends Cubit<UserState> {
   Future<void> fetchUserAttributes() async {
     try {
       final attributes = await Amplify.Auth.fetchUserAttributes();
-      safePrint('User attributes fetched: $attributes');
       String? id;
       String? email;
       String? username;
@@ -137,11 +136,22 @@ class UserCubit extends Cubit<UserState> {
     }
     emit(state.copyWith(action: AuthAction.signUp, status: AuthStatus.initiated, email: email, clearError: true));
     try {
+      // Generate a new seed if not already set from previous attempt
+      var seed = await _storage.getSeed();
+      if (seed == null || seed.isEmpty) {
+        seed = generateHexSeed();
+        await _storage.setSeed(seed);
+      }
+
       final result = await Amplify.Auth.signUp(
-        username: email,
+        username: username,
         password: password,
         options: SignUpOptions(
-          userAttributes: {AuthUserAttributeKey.email: email, AuthUserAttributeKey.preferredUsername: username},
+          userAttributes: {
+            AuthUserAttributeKey.email: email,
+            AuthUserAttributeKey.preferredUsername: username,
+            CognitoUserAttributeKey.custom('pubkey'): getPubKey(secret: seed),
+          },
         ),
       );
       if (result.isSignUpComplete) {

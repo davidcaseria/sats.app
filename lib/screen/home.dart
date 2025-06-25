@@ -12,6 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/activity.dart';
 import 'package:sats_app/screen/onboarding.dart';
+import 'package:sats_app/screen/recovery.dart';
 import 'package:sats_app/screen/settings.dart';
 import 'package:sats_app/screen/transact.dart';
 
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _isLoading = true;
   Wallet? _wallet;
+  bool _showRecovery = false;
 
   Future<void> _loadWallet({String? mintUrl}) async {
     try {
@@ -45,6 +47,18 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _wallet = wallet;
         _isLoading = false;
+        _showRecovery = false;
+      });
+    } on SeedNotFoundException {
+      setState(() {
+        _isLoading = false;
+        _showRecovery = true;
+      });
+    } on MintUrlNotFoundException {
+      setState(() {
+        _isLoading = false;
+        _showRecovery = false;
+        _wallet = null;
       });
     } catch (e) {
       setState(() {
@@ -74,6 +88,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Center(child: CircularProgressIndicator());
+    }
+
+    if (_showRecovery) {
+      return RecoveryScreen(
+        onRecovered: () async {
+          setState(() {
+            _isLoading = true;
+            _showRecovery = false;
+          });
+          await _loadWallet();
+        },
+      );
     }
 
     if (_wallet == null) {
@@ -161,7 +187,7 @@ class _Drawer extends StatelessWidget {
           for (final mint in mints) {
             listViewWidgets.add(
               ListTile(
-                title: Text(mint.url),
+                title: Text(mint.info?.name ?? mint.url),
                 subtitle: Text('${mint.balance} sat'),
                 onTap: () async {
                   final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
@@ -180,9 +206,22 @@ class _Drawer extends StatelessWidget {
               DrawerHeader(
                 decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
                 margin: EdgeInsets.zero,
-                child: Text(
-                  'Switch Wallet',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                child: Column(
+                  children: [
+                    Text(
+                      state.currentMint?.info?.name ?? 'Wallets',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineSmall?.copyWith(color: Theme.of(context).colorScheme.onPrimary),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      state.currentMint?.url ?? 'No active wallet',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onPrimary),
+                    ),
+                  ],
                 ),
               ),
               ...listViewWidgets,

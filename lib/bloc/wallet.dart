@@ -2,6 +2,20 @@ import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sats_app/storage.dart';
 
+class SeedNotFoundException implements Exception {
+  final String message;
+  SeedNotFoundException([this.message = 'Seed not found. Please recover your wallet.']);
+  @override
+  String toString() => message;
+}
+
+class MintUrlNotFoundException implements Exception {
+  final String message;
+  MintUrlNotFoundException([this.message = 'Mint URL not found. Please set up your wallet first.']);
+  @override
+  String toString() => message;
+}
+
 class WalletCubit extends Cubit<WalletState> {
   final WalletDatabase db;
   WalletCubit(this.db) : super(WalletState());
@@ -19,12 +33,12 @@ class WalletCubit extends Cubit<WalletState> {
     final storage = AppStorage();
     final seed = await storage.getSeed();
     if (seed == null) {
-      throw Exception('Seed not found. Please set up your wallet first.');
+      throw SeedNotFoundException();
     }
     if (mintUrl == null) {
       mintUrl = await storage.getMintUrl();
       if (mintUrl == null) {
-        throw Exception('Mint URL not found. Please set up your wallet first.');
+        throw MintUrlNotFoundException();
       }
     }
     storage.setMintUrl(mintUrl);
