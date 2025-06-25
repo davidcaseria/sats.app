@@ -4,7 +4,18 @@ import 'package:searchable_listview/searchable_listview.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final Function(String mintUrl) onJoinMint;
-  static final List<String> _defaultMintUrls = ['http://testnut.cashu.space/', 'https://fake.thesimplekid.dev/'];
+  static final List<String> _defaultMintUrls = [
+    'https://mint.minibits.cash/Bitcoin',
+    'https://mint.lnvoltz.com',
+    'https://mint.coinos.io',
+    'https://mint.mountainlake.io',
+    'https://mint.agorist.space',
+    'https://mint.lnwallet.app',
+    'https://21mint.me',
+    'https://mint.lnserver.com',
+    'https://mint.0xchat.com',
+    'https://mint.westernbtc.com',
+  ];
 
   const OnboardingScreen({super.key, required this.onJoinMint});
 
