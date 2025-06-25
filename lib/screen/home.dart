@@ -12,6 +12,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/activity.dart';
 import 'package:sats_app/screen/onboarding.dart';
+import 'package:sats_app/screen/settings.dart';
 import 'package:sats_app/screen/transact.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -90,7 +91,14 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           leading: _MenuButton(),
           title: _AppBarTitle(wallet: _wallet!),
-          actions: [IconButton(icon: Icon(Icons.settings), onPressed: () {})],
+          actions: [
+            IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(context, SettingsScreen.route());
+              },
+            ),
+          ],
         ),
         drawer: _Drawer(
           onWalletSelected: (wallet) {

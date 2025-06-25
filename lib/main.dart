@@ -12,7 +12,7 @@ import 'package:local_session_timeout/local_session_timeout.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sats_app/amplify_outputs.dart';
-import 'package:sats_app/bloc/auth.dart';
+import 'package:sats_app/bloc/user.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/home.dart';
 import 'package:sats_app/screen/auth.dart';
@@ -42,7 +42,7 @@ void main() async {
   Bloc.observer = _AppBlocObserver();
   final app = MultiBlocProvider(
     providers: [
-      BlocProvider<AuthCubit>(create: (_) => AuthCubit()..authenticate()),
+      BlocProvider<UserCubit>(create: (_) => UserCubit()..authenticate()),
       BlocProvider<WalletCubit>(create: (_) => WalletCubit(db)..loadMints()),
     ],
     child: _App(db: db, wallet: null),
@@ -77,7 +77,7 @@ class _AppState extends State<_App> {
     _appLinkSubscription = appLinks.uriLinkStream.listen((uri) {});
     _sessionTimeoutSubscription = _sessionConfig.stream.listen((state) {
       if (mounted) {
-        context.read<AuthCubit>().unauthenticate();
+        context.read<UserCubit>().unauthenticate();
       }
     });
   }
@@ -92,12 +92,21 @@ class _AppState extends State<_App> {
 
   @override
   Widget build(BuildContext context) {
-    return SessionTimeoutManager(sessionConfig: _sessionConfig, child: _buildApp());
+    return BlocBuilder<UserCubit, UserState>(
+      buildWhen: (previous, current) => previous.isDarkMode != current.isDarkMode,
+      builder: (context, state) {
+        final themeData = (state.isDarkMode)
+            ? ThemeData.from(
+                colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange, brightness: Brightness.dark),
+              )
+            : ThemeData.from(colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange));
+        return SessionTimeoutManager(sessionConfig: _sessionConfig, child: _buildApp(themeData));
+      },
+    );
   }
 
-  Widget _buildApp() {
+  Widget _buildApp(ThemeData themeData) {
     final spinner = const Center(child: CircularProgressIndicator());
-    final themeData = ThemeData.from(colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.orange));
     if (Theme.of(context).platform == TargetPlatform.iOS) {
       return CupertinoApp(
         debugShowCheckedModeBanner: false,
@@ -129,7 +138,7 @@ class _AppListeners extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<AuthCubit, AuthState>(
+    return BlocListener<UserCubit, UserState>(
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
         safePrint('Auth status changed: ${state.status}');

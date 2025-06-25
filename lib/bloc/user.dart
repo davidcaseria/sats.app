@@ -1,8 +1,10 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sats_app/storage.dart';
 
-class AuthCubit extends Cubit<AuthState> {
-  AuthCubit() : super(AuthState());
+class UserCubit extends Cubit<UserState> {
+  final _storage = AppStorage();
+  UserCubit() : super(UserState());
 
   Future<void> authenticate({String? username, String? password}) async {
     if (state.status == AuthStatus.initiated) {
@@ -12,14 +14,16 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final result = await Amplify.Auth.fetchAuthSession();
       if (result.isSignedIn) {
+        safePrint('User is already authenticated');
+        await fetchUserAttributes();
+        await fetchUserSettings();
         emit(state.copyWith(status: AuthStatus.authenticated));
-        return;
-      }
-
-      if (username != null) {
+      } else if (username != null) {
         final result = await Amplify.Auth.signIn(username: username, password: password);
         if (result.isSignedIn) {
-          emit(state.copyWith(status: AuthStatus.authenticated));
+          await fetchUserAttributes();
+          await fetchUserSettings();
+          emit(state.copyWith(status: AuthStatus.authenticated, action: AuthAction.signIn));
         } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, action: AuthAction.signUp));
         } else {
@@ -61,6 +65,72 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  Future<void> fetchUserAttributes() async {
+    try {
+      final attributes = await Amplify.Auth.fetchUserAttributes();
+      safePrint('User attributes fetched: $attributes');
+      String? id;
+      String? email;
+      String? username;
+
+      for (final attribute in attributes) {
+        switch (attribute.userAttributeKey) {
+          case AuthUserAttributeKey.sub:
+            id = attribute.value;
+            break;
+          case AuthUserAttributeKey.email:
+            email = attribute.value;
+            break;
+          case AuthUserAttributeKey.preferredUsername:
+            username = attribute.value;
+            break;
+          default:
+            break;
+        }
+      }
+
+      emit(state.copyWith(id: id, email: email, username: username));
+    } on AuthException catch (e) {
+      safePrint('Error fetching user attributes: ${e.message}');
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
+  Future<void> fetchUserSettings() async {
+    try {
+      final isCloudSyncEnabled = await _storage.isCloudSyncEnabled();
+      final isDarkMode = await _storage.isDarkMode();
+      emit(state.copyWith(isCloudSyncEnabled: isCloudSyncEnabled, isDarkMode: isDarkMode));
+    } catch (e) {
+      safePrint('Error fetching user settings: $e');
+      emit(state.copyWith(error: e.toString()));
+    }
+  }
+
+  Future<void> removeAccount({bool deleteUser = false}) async {
+    try {
+      if (deleteUser) {
+        await Amplify.Auth.deleteUser();
+      } else {
+        await Amplify.Auth.signOut();
+      }
+      await _storage.clear();
+      emit(UserState(status: AuthStatus.unauthenticated));
+    } on AuthException catch (e) {
+      emit(state.copyWith(status: AuthStatus.unauthenticated, error: e.message));
+    }
+  }
+
+  Future<void> setCloudSyncEnabled(bool isEnabled) async {
+    await _storage.setCloudSyncEnabled(isEnabled);
+    emit(state.copyWith(isCloudSyncEnabled: isEnabled));
+  }
+
+  Future<void> setDarkMode(bool isDarkMode) async {
+    await _storage.setDarkMode(isDarkMode);
+    emit(state.copyWith(isDarkMode: isDarkMode));
+  }
+
   Future<void> signUp({required String email, required String username, required String password}) async {
     if (state.status == AuthStatus.initiated) {
       return;
@@ -94,19 +164,46 @@ class AuthCubit extends Cubit<AuthState> {
   }
 }
 
-class AuthState {
+class UserState {
   AuthStatus status = AuthStatus.unauthenticated;
   AuthAction? action;
+  String? id;
   String? email;
+  String? username;
+  bool isCloudSyncEnabled = true;
+  bool isDarkMode = false;
   String? error;
 
-  AuthState({this.status = AuthStatus.unauthenticated, this.action, this.email, this.error});
+  UserState({
+    this.status = AuthStatus.unauthenticated,
+    this.action,
+    this.id,
+    this.email,
+    this.username,
+    this.isCloudSyncEnabled = true,
+    this.isDarkMode = false,
+    this.error,
+  });
 
-  AuthState copyWith({AuthStatus? status, AuthAction? action, String? email, String? error, bool clearError = false}) {
-    return AuthState(
+  UserState copyWith({
+    AuthStatus? status,
+    AuthAction? action,
+    String? id,
+    String? email,
+    String? username,
+    bool? isCloudSyncEnabled,
+    bool? isDarkMode,
+    String? error,
+    bool clearError = false,
+  }) {
+    return UserState(
       status: status ?? this.status,
       action: action ?? this.action,
+      id: id ?? this.id,
       email: email ?? this.email,
+      username: username ?? this.username,
+      isCloudSyncEnabled: isCloudSyncEnabled ?? this.isCloudSyncEnabled,
+      isDarkMode: isDarkMode ?? this.isDarkMode,
       error: (clearError) ? null : error ?? this.error,
     );
   }

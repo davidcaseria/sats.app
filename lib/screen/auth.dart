@@ -4,7 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pinput/pinput.dart';
-import '../bloc/auth.dart';
+import '../bloc/user.dart';
 
 class AuthScreen extends StatefulWidget {
   static Route route() {
@@ -46,7 +46,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<AuthCubit, AuthState>(
+    return BlocConsumer<UserCubit, UserState>(
       listener: (context, state) {
         if (state.status == AuthStatus.pendingConfirmation) {
           Navigator.of(context).pushAndRemoveUntil(_ConfirmationCodeScreen.route(), (route) => false);
@@ -106,7 +106,7 @@ class _SignInScreenState extends State<_SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AuthCubit>().state;
+    final state = context.watch<UserCubit>().state;
     final isPending = state.status == AuthStatus.initiated;
     return Column(
       children: [
@@ -129,7 +129,7 @@ class _SignInScreenState extends State<_SignInScreen> {
             onPressed: isPending
                 ? null
                 : () {
-                    context.read<AuthCubit>().authenticate(
+                    context.read<UserCubit>().authenticate(
                       username: userController.text,
                       password: passController.text,
                     );
@@ -171,7 +171,7 @@ class _SignUpScreenState extends State<_SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AuthCubit>().state;
+    final state = context.watch<UserCubit>().state;
     final isPending = state.status == AuthStatus.initiated;
     return Column(
       children: [
@@ -200,7 +200,7 @@ class _SignUpScreenState extends State<_SignUpScreen> {
             onPressed: isPending
                 ? null
                 : () {
-                    context.read<AuthCubit>().signUp(
+                    context.read<UserCubit>().signUp(
                       email: emailController.text,
                       username: userController.text,
                       password: passController.text,
@@ -240,7 +240,7 @@ class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
 
   void _submitCode() async {
     setState(() => isSubmitting = true);
-    await context.read<AuthCubit>().confirm(confirmationCode: code);
+    await context.read<UserCubit>().confirm(confirmationCode: code);
     setState(() => isSubmitting = false);
   }
 
@@ -250,7 +250,7 @@ class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
       appBar: AppBar(title: const Text('Confirm Email'), automaticallyImplyLeading: false),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: BlocBuilder<AuthCubit, AuthState>(
+        child: BlocBuilder<UserCubit, UserState>(
           builder: (context, state) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
