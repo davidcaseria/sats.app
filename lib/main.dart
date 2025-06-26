@@ -62,12 +62,49 @@ class _AppState extends State<_App> {
   StreamSubscription<Uri>? _appLinkSubscription;
   StreamSubscription<SessionTimeoutState>? _sessionTimeoutSubscription;
 
+  Widget _buildApp(ThemeData themeData) {
+    final spinner = const Center(child: CircularProgressIndicator());
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return CupertinoApp(
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate],
+        navigatorKey: _navigatorKey,
+        theme: MaterialBasedCupertinoThemeData(materialTheme: themeData),
+        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
+        home: spinner,
+      );
+    } else {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        navigatorKey: _navigatorKey,
+        theme: themeData,
+        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
+        home: spinner,
+      );
+    }
+  }
+
+  void _receiveToken(String encodedToken) async {
+    safePrint('Received token: $encodedToken');
+    final walletCubit = context.read<WalletCubit>();
+    try {
+      await walletCubit.receiveToken(encodedToken);
+    } catch (e) {
+      safePrint('Error receiving token: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
     final appLinks = AppLinks();
-    _appLinkSubscription = appLinks.uriLinkStream.listen((uri) {});
+    _appLinkSubscription = appLinks.uriLinkStream.listen((uri) {
+      safePrint('Received app link: $uri');
+      if (uri.scheme == 'cashu') {
+        _receiveToken(uri.path);
+      }
+    });
     _sessionTimeoutSubscription = _sessionConfig.stream.listen((state) {
       if (mounted) {
         context.read<UserCubit>().unauthenticate();
@@ -96,28 +133,6 @@ class _AppState extends State<_App> {
         return SessionTimeoutManager(sessionConfig: _sessionConfig, child: _buildApp(themeData));
       },
     );
-  }
-
-  Widget _buildApp(ThemeData themeData) {
-    final spinner = const Center(child: CircularProgressIndicator());
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      return CupertinoApp(
-        debugShowCheckedModeBanner: false,
-        localizationsDelegates: [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate],
-        navigatorKey: _navigatorKey,
-        theme: MaterialBasedCupertinoThemeData(materialTheme: themeData),
-        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
-        home: spinner,
-      );
-    } else {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _navigatorKey,
-        theme: themeData,
-        builder: (context, child) => _AppListeners(navigatorKey: _navigatorKey, child: child ?? spinner),
-        home: spinner,
-      );
-    }
   }
 }
 

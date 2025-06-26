@@ -144,7 +144,7 @@ class _TransactionsListView extends StatelessWidget {
     return SliverStickyHeader(
       header: _ListViewHeader(label: 'Transactions'),
       sliver: (transactions.isEmpty)
-          ? Text('No Transactions', textAlign: TextAlign.center)
+          ? SliverToBoxAdapter(child: Text('No Transactions', textAlign: TextAlign.center))
           : SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final transaction = transactions[index];

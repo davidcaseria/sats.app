@@ -35,6 +35,12 @@ class WalletCubit extends Cubit<WalletState> {
     emit(state.copyWith(currentMint: mint));
     return wallet;
   }
+
+  Future<void> receiveToken(String encodedToken) async {
+    final token = Token.parse(encoded: encodedToken);
+    final wallet = await loadWallet(mintUrl: token.mintUrl);
+    await wallet.receive(token: token);
+  }
 }
 
 class WalletState {
