@@ -2,20 +2,6 @@ import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sats_app/storage.dart';
 
-class SeedNotFoundException implements Exception {
-  final String message;
-  SeedNotFoundException([this.message = 'Seed not found. Please recover your wallet.']);
-  @override
-  String toString() => message;
-}
-
-class MintUrlNotFoundException implements Exception {
-  final String message;
-  MintUrlNotFoundException([this.message = 'Mint URL not found. Please set up your wallet first.']);
-  @override
-  String toString() => message;
-}
-
 class WalletCubit extends Cubit<WalletState> {
   final WalletDatabase db;
   WalletCubit(this.db) : super(WalletState());
@@ -40,9 +26,10 @@ class WalletCubit extends Cubit<WalletState> {
       if (mintUrl == null) {
         throw MintUrlNotFoundException();
       }
+    } else {
+      storage.setMintUrl(mintUrl);
     }
-    storage.setMintUrl(mintUrl);
-    final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', localstore: db);
+    final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', db: db);
     await wallet.reclaimReserved();
     final mint = await wallet.getMint();
     emit(state.copyWith(currentMint: mint));
@@ -67,4 +54,18 @@ class WalletState {
   WalletState copyWith({Mint? currentMint, List<Mint>? mints}) {
     return WalletState(currentMint: currentMint ?? this.currentMint, mints: mints ?? this.mints);
   }
+}
+
+class SeedNotFoundException implements Exception {
+  final String message;
+  SeedNotFoundException([this.message = 'Seed not found. Please recover your wallet.']);
+  @override
+  String toString() => message;
+}
+
+class MintUrlNotFoundException implements Exception {
+  final String message;
+  MintUrlNotFoundException([this.message = 'Mint URL not found. Please set up your wallet first.']);
+  @override
+  String toString() => message;
 }

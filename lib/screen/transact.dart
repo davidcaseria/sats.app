@@ -1066,7 +1066,11 @@ class _TransactCubit extends Cubit<_TransactState> {
           } catch (e) {
             safePrint('Error creating pay link: $e');
             await wallet.reclaimSend(token: token);
-            emit(state.copyWith(actionState: _ActionState.failure, actionMsg: 'Failed to create pay link.'));
+            emit(
+              state
+                  .copyWith(actionState: _ActionState.failure, actionMsg: 'Failed to create pay link.')
+                  .clearTransaction(),
+            );
           }
           break;
         case _TransactMethod.username:

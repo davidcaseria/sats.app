@@ -106,6 +106,10 @@ class _SignInScreenState extends State<_SignInScreen> {
     super.dispose();
   }
 
+  void _signIn() {
+    context.read<UserCubit>().authenticate(username: userController.text, password: passController.text);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<UserCubit>().state;
@@ -150,19 +154,13 @@ class _SignInScreenState extends State<_SignInScreen> {
           textCapitalization: TextCapitalization.none,
           obscureText: _obscurePassword,
           enabled: !isPending,
+          onSubmitted: isPending ? null : (_) => _signIn(),
         ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: isPending
-                ? null
-                : () {
-                    context.read<UserCubit>().authenticate(
-                      username: userController.text,
-                      password: passController.text,
-                    );
-                  },
+            onPressed: isPending ? null : _signIn,
             child: isPending
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Text('Sign In'),
@@ -197,6 +195,14 @@ class _SignUpScreenState extends State<_SignUpScreen> {
     userController.dispose();
     passController.dispose();
     super.dispose();
+  }
+
+  void _signUp() {
+    context.read<UserCubit>().signUp(
+      email: emailController.text,
+      username: userController.text,
+      password: passController.text,
+    );
   }
 
   @override
@@ -257,20 +263,13 @@ class _SignUpScreenState extends State<_SignUpScreen> {
           textCapitalization: TextCapitalization.none,
           obscureText: _obscurePassword,
           enabled: !isPending,
+          onSubmitted: isPending ? null : (_) => _signUp(),
         ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: isPending
-                ? null
-                : () {
-                    context.read<UserCubit>().signUp(
-                      email: emailController.text,
-                      username: userController.text,
-                      password: passController.text,
-                    );
-                  },
+            onPressed: isPending ? null : _signUp,
             child: isPending
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Text('Sign Up'),
@@ -343,7 +342,12 @@ class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
                   children: [
                     Pinput(
                       length: 6,
-                      onCompleted: (val) => setState(() => code = val),
+                      onCompleted: (val) {
+                        setState(() {
+                          code = val;
+                        });
+                        _submitCode();
+                      },
                       defaultPinTheme: PinTheme(
                         width: 40,
                         height: 56,

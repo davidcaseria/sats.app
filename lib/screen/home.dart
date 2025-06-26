@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:animated_digit/animated_digit.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
@@ -61,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _wallet = null;
       });
     } catch (e) {
+      safePrint('Error loading wallet: $e');
       setState(() {
         _isLoading = false;
       });

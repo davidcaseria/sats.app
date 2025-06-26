@@ -134,7 +134,15 @@ class UserCubit extends Cubit<UserState> {
     if (state.status == AuthStatus.initiated) {
       return;
     }
-    emit(state.copyWith(action: AuthAction.signUp, status: AuthStatus.initiated, email: email, clearError: true));
+    emit(
+      state.copyWith(
+        action: AuthAction.signUp,
+        status: AuthStatus.initiated,
+        email: email,
+        username: username,
+        clearError: true,
+      ),
+    );
     try {
       // Generate a new seed if not already set from previous attempt
       var seed = await _storage.getSeed();

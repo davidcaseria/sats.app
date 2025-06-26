@@ -129,6 +129,9 @@ Future<String?> _showMintInputDialogFunc(BuildContext context) async {
       content: TextField(
         controller: dialogController,
         decoration: const InputDecoration(border: OutlineInputBorder()),
+        autofillHints: const [AutofillHints.url],
+        keyboardType: TextInputType.url,
+        autocorrect: false,
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
