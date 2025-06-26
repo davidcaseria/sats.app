@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/api.dart';
+import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
@@ -46,13 +47,26 @@ class _TransactScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<_TransactCubit, _TransactState>(
-      listenWhen: (previous, current) => previous.action != current.action,
-      listener: (context, state) {
-        if (state.action != null) {
-          _showSheet(context);
-        }
-      },
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<WalletCubit, WalletState>(
+          listenWhen: (previous, current) => previous.appLinkInput != current.appLinkInput,
+          listener: (context, state) {
+            if (state.appLinkInput != null) {
+              context.read<_TransactCubit>().parseInput(state.appLinkInput!);
+              context.read<WalletCubit>().clearInput();
+            }
+          },
+        ),
+        BlocListener<_TransactCubit, _TransactState>(
+          listenWhen: (previous, current) => previous.action != current.action,
+          listener: (context, state) {
+            if (state.action != null) {
+              _showSheet(context);
+            }
+          },
+        ),
+      ],
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [

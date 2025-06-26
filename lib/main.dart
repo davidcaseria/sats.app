@@ -84,16 +84,6 @@ class _AppState extends State<_App> {
     }
   }
 
-  void _receiveToken(String encodedToken) async {
-    safePrint('Received token: $encodedToken');
-    final walletCubit = context.read<WalletCubit>();
-    try {
-      await walletCubit.receiveToken(encodedToken);
-    } catch (e) {
-      safePrint('Error receiving token: $e');
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -101,9 +91,7 @@ class _AppState extends State<_App> {
     final appLinks = AppLinks();
     _appLinkSubscription = appLinks.uriLinkStream.listen((uri) {
       safePrint('Received app link: $uri');
-      if (uri.scheme == 'cashu') {
-        _receiveToken(uri.path);
-      }
+      context.read<WalletCubit>().handleAppLink(uri);
     });
     _sessionTimeoutSubscription = _sessionConfig.stream.listen((state) {
       if (mounted) {

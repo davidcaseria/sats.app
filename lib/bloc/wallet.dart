@@ -1,3 +1,4 @@
+import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sats_app/storage.dart';
@@ -5,6 +6,18 @@ import 'package:sats_app/storage.dart';
 class WalletCubit extends Cubit<WalletState> {
   final WalletDatabase db;
   WalletCubit(this.db) : super(WalletState());
+
+  void clearInput() {
+    emit(state.clearInput());
+  }
+
+  void handleAppLink(Uri uri) {
+    try {
+      emit(state.copyWith(appLinkInput: parseInput(input: uri.toString())));
+    } catch (e) {
+      safePrint('Error parsing input: $e');
+    }
+  }
 
   Future<void> loadMints() async {
     final mints = await db.listMints();
@@ -35,19 +48,14 @@ class WalletCubit extends Cubit<WalletState> {
     emit(state.copyWith(currentMint: mint));
     return wallet;
   }
-
-  Future<void> receiveToken(String encodedToken) async {
-    final token = Token.parse(encoded: encodedToken);
-    final wallet = await loadWallet(mintUrl: token.mintUrl);
-    await wallet.receive(token: token);
-  }
 }
 
 class WalletState {
+  ParseInputResult? appLinkInput;
   Mint? currentMint;
   List<Mint>? mints;
 
-  WalletState({this.currentMint, this.mints});
+  WalletState({this.appLinkInput, this.currentMint, this.mints});
 
   String? get currentMintUrl {
     return currentMint?.url;
@@ -57,8 +65,16 @@ class WalletState {
     return mints?.map((m) => m.url).toList() ?? [];
   }
 
-  WalletState copyWith({Mint? currentMint, List<Mint>? mints}) {
-    return WalletState(currentMint: currentMint ?? this.currentMint, mints: mints ?? this.mints);
+  WalletState copyWith({ParseInputResult? appLinkInput, Mint? currentMint, List<Mint>? mints}) {
+    return WalletState(
+      appLinkInput: appLinkInput ?? this.appLinkInput,
+      currentMint: currentMint ?? this.currentMint,
+      mints: mints ?? this.mints,
+    );
+  }
+
+  WalletState clearInput() {
+    return WalletState(currentMint: currentMint, mints: mints);
   }
 }
 
