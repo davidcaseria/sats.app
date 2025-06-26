@@ -95,7 +95,9 @@ class _AppState extends State<_App> {
     });
     _sessionTimeoutSubscription = _sessionConfig.stream.listen((state) {
       if (mounted) {
-        context.read<UserCubit>().unauthenticate();
+        safePrint('Session timeout state: $state');
+        // TODO: Handle session timeout state changes
+        // context.read<UserCubit>().unauthenticate();
       }
     });
   }
