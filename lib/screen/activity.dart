@@ -302,14 +302,14 @@ class _ActivityCubit extends Cubit<_ActivityState> {
   }
 
   Future<void> fetchData() async {
-    emit(state.copyWith(isLoading: true));
+    emit(state.copyWith(isLoading: true, clearError: true));
     try {
       final transactions = await wallet.listTransactions();
-      emit(state.copyWith(transactions: transactions, isLoading: true));
+      emit(state.copyWith(transactions: transactions, isLoading: false));
       final paymentRequests = await _api.listPaymentRequests();
       emit(state.copyWith(paymentRequests: paymentRequests));
     } catch (e) {
-      emit(state.copyWith(isLoading: false));
+      emit(state.copyWith(error: e.toString(), isLoading: false));
     }
   }
 
@@ -356,6 +356,7 @@ class _ActivityState {
     bool clearPreparedSend = false,
     String? success,
     String? error,
+    bool clearError = false,
   }) {
     return _ActivityState(
       paymentRequests: paymentRequests ?? this.paymentRequests,
@@ -363,7 +364,7 @@ class _ActivityState {
       isLoading: isLoading ?? this.isLoading,
       preparedSend: (clearPreparedSend) ? null : preparedSend ?? this.preparedSend,
       success: success ?? this.success,
-      error: error ?? this.error,
+      error: (clearError) ? null : error ?? this.error,
     );
   }
 
