@@ -23,7 +23,10 @@ dependencies:
   bip39: ^1.0.6
   bloc: ^9.0.0
   chopper: ^8.0.0
+  cryptography: ^2.7.0
+  dio: ^5.8.0+1
   equatable: ^2.0.7
+  file_picker: ^10.2.0
   flutter_bloc: ^9.1.1
   flutter_secure_storage: ^9.2.4
   flutter_sticky_header: ^0.8.0
@@ -40,8 +43,6 @@ dependencies:
   share_plus: ^11.0.0
   shared_preferences: ^2.5.3
   uuid: ^4.5.1
-  dio: ^5.8.0+1
-  cryptography: ^2.7.0
 
 dev_dependencies:
   flutter_test:

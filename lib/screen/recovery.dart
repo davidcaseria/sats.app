@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:sats_app/storage.dart';
 
+// ...existing imports...
+import 'package:file_picker/file_picker.dart';
+
 class RecoveryScreen extends StatefulWidget {
   final VoidCallback onRecovered;
 
@@ -17,6 +20,12 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _pasteFromClipboard(silent: true);
+  }
 
   @override
   void dispose() {
@@ -63,17 +72,88 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
     }
   }
 
+  Future<void> _loadFromFile() async {
+    setState(() {
+      _error = null;
+    });
+    try {
+      // Use file_picker to pick a file
+      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt']);
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final content = String.fromCharCodes(file.bytes ?? []);
+      final words = content.trim().replaceAll(RegExp(r'\s+'), ' ').split(' ');
+      if (words.length != 24) {
+        setState(() {
+          _error = 'File must contain exactly 24 words.';
+        });
+        return;
+      }
+      for (int i = 0; i < 24; i++) {
+        _controllers[i].text = words[i];
+      }
+      await _recover();
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load file.';
+      });
+    }
+  }
+
+  Future<void> _pasteFromClipboard({bool silent = false}) async {
+    setState(() {
+      _error = null;
+    });
+    try {
+      final data = await Clipboard.getData('text/plain');
+      final content = data?.text?.trim() ?? '';
+      final words = content.replaceAll(RegExp(r'\s+'), ' ').split(' ');
+      if (words.length != 24) {
+        if (!silent) {
+          setState(() {
+            _error = 'Clipboard must contain exactly 24 words.';
+          });
+        }
+        return;
+      }
+      for (int i = 0; i < 24; i++) {
+        _controllers[i].text = words[i];
+      }
+      await _recover();
+    } catch (e) {
+      if (!silent) {
+        setState(() {
+          _error = 'Failed to read clipboard.';
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Recover Wallet')),
+      appBar: AppBar(
+        title: const Text('Recover Wallet'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.paste),
+            tooltip: 'Paste from Clipboard',
+            onPressed: _loading ? null : _pasteFromClipboard,
+          ),
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Load from File',
+            onPressed: _loading ? null : _loadFromFile,
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Text('Enter your 24-word recovery phrase', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
