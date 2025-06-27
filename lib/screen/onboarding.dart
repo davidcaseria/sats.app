@@ -1,6 +1,5 @@
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:searchable_listview/searchable_listview.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final Function(String mintUrl) onJoinMint;
@@ -24,126 +23,153 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  late Future<List<_FeaturedMint>> _mintsFuture;
+  final List<_FeaturedMint> _mints = [];
+  final Set<String> _loadingUrls = {};
+  final Set<String> _failedUrls = {};
+  String _searchQuery = '';
+  bool _isManualLoading = false;
+  String? _manualError;
 
   @override
   void initState() {
     super.initState();
-    _mintsFuture = _fetchMints();
+    _loadDefaultMints();
   }
 
-  Future<List<_FeaturedMint>> _fetchMints() async {
-    return Future.wait(
-      OnboardingScreen._defaultMintUrls.map((url) async {
-        final info = await getMintInfo(mintUrl: url);
-        return _FeaturedMint(url: url, info: info);
-      }),
-    );
+  void _loadDefaultMints() {
+    for (final url in OnboardingScreen._defaultMintUrls) {
+      _addMintByUrl(url);
+    }
   }
 
-  void _showMintInputDialog() async {
-    final mintUrl = await _showMintInputDialogFunc(context);
-    if (mintUrl == null || mintUrl.isEmpty) return;
-    widget.onJoinMint(mintUrl);
+  Future<void> _addMintByUrl(String url) async {
+    if (_loadingUrls.contains(url) || _mints.any((m) => m.url == url) || _failedUrls.contains(url)) return;
+    setState(() {
+      _loadingUrls.add(url);
+    });
+    try {
+      final info = await getMintInfo(mintUrl: url);
+      setState(() {
+        _mints.add(_FeaturedMint(url: url, info: info));
+        _loadingUrls.remove(url);
+        _failedUrls.remove(url);
+      });
+    } catch (e) {
+      setState(() {
+        _loadingUrls.remove(url);
+        _failedUrls.add(url);
+      });
+    }
+  }
+
+  void _onSearchChanged(String query) async {
+    setState(() {
+      _searchQuery = query;
+      _manualError = null;
+    });
+    final isUrl = Uri.tryParse(query)?.hasAbsolutePath == true;
+    final hasResults = _filteredMints(query).isNotEmpty;
+    if (isUrl &&
+        !hasResults &&
+        !_isManualLoading &&
+        !_loadingUrls.contains(query) &&
+        !_mints.any((m) => m.url == query)) {
+      setState(() {
+        _isManualLoading = true;
+        _manualError = null;
+      });
+      try {
+        await _addMintByUrl(query);
+      } catch (e) {
+        setState(() {
+          _manualError = 'Failed to load mint info.';
+        });
+      } finally {
+        setState(() {
+          _isManualLoading = false;
+        });
+      }
+    }
+  }
+
+  List<_FeaturedMint> _filteredMints(String query) {
+    final lowerQuery = query.toLowerCase();
+    return _mints.where((mint) {
+      if (lowerQuery.isEmpty) return true;
+      if (mint.info.name != null && mint.info.name!.toLowerCase().contains(lowerQuery)) return true;
+      if (mint.info.urls != null && mint.info.urls!.any((url) => url.toLowerCase().contains(lowerQuery))) return true;
+      if (mint.url.toLowerCase().contains(lowerQuery)) return true;
+      return false;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredMints(_searchQuery);
     return Scaffold(
       appBar: AppBar(title: const Text('Join a Mint')),
-      body: FutureBuilder<List<_FeaturedMint>>(
-        future: _mintsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Failed to load mints'));
-          }
-          final mints = snapshot.data ?? [];
-          return Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 76),
-            child: SearchableList<_FeaturedMint>(
-              initialList: mints,
-              filter: (query) => mints.where((mint) {
-                final lowerQuery = query.toLowerCase();
-                if (lowerQuery.isEmpty) return true;
-                if (mint.info.name != null && mint.info.name!.toLowerCase().contains(lowerQuery)) return true;
-                if (mint.info.urls != null && mint.info.urls!.any((url) => url.toLowerCase().contains(lowerQuery))) {
-                  return true;
-                }
-                return false;
-              }).toList(),
-              itemBuilder: (mint) {
-                final name = mint.info.name?.toLowerCase();
-                final url =
-                    mint.info.urls?.map((url) => url.toLowerCase()).toList().firstOrNull ?? mint.url.toLowerCase();
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  child: ListTile(
-                    leading: mint.info.iconUrl != null
-                        ? Image.network(
-                            mint.info.iconUrl!,
-                            width: 40,
-                            height: 40,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet),
-                          )
-                        : const Icon(Icons.account_balance, size: 40),
-                    title: Text(name ?? url),
-                    onTap: () => widget.onJoinMint(url),
-                  ),
-                );
-              },
-              inputDecoration: const InputDecoration(
-                labelText: 'Search Mints',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+      body: Padding(
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
+        child: Column(
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                labelText: 'Search or enter Mint URL',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                suffixIcon: _isManualLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : null,
               ),
-              emptyWidget: const Center(child: Text('No mints found')),
+              onChanged: _onSearchChanged,
+              keyboardType: TextInputType.url,
+              autofillHints: const [AutofillHints.url],
             ),
-          );
-        },
-      ),
-      bottomSheet: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.add, size: 20),
-            label: Text('Manually Join Mint', textScaler: TextScaler.linear(1.2)),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-            onPressed: _showMintInputDialog,
-          ),
+            if (_manualError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_manualError!, style: const TextStyle(color: Colors.red)),
+              ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: filtered.isEmpty
+                  ? (_isManualLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : const Center(child: Text('No mints found')))
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, idx) {
+                        final mint = filtered[idx];
+                        final name = mint.info.name?.toLowerCase();
+                        final url =
+                            mint.info.urls?.map((url) => url.toLowerCase()).toList().firstOrNull ??
+                            mint.url.toLowerCase();
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          child: ListTile(
+                            leading: mint.info.iconUrl != null
+                                ? Image.network(
+                                    mint.info.iconUrl!,
+                                    width: 40,
+                                    height: 40,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet),
+                                  )
+                                : const Icon(Icons.account_balance, size: 40),
+                            title: Text(name ?? url),
+                            onTap: () => widget.onJoinMint(url),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-Future<String?> _showMintInputDialogFunc(BuildContext context) async {
-  final TextEditingController dialogController = TextEditingController();
-  return await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Enter Mint URL'),
-      content: TextField(
-        controller: dialogController,
-        decoration: const InputDecoration(border: OutlineInputBorder()),
-        autofillHints: const [AutofillHints.url],
-        keyboardType: TextInputType.url,
-        autocorrect: false,
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop(dialogController.text);
-          },
-          child: const Text('OK'),
-        ),
-      ],
-    ),
-  );
 }
 
 class _FeaturedMint {
