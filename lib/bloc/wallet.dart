@@ -20,7 +20,8 @@ class WalletCubit extends Cubit<WalletState> {
   }
 
   Future<void> loadMints() async {
-    final mints = await db.listMints();
+    final seed = await AppStorage().getSeed();
+    final mints = await db.listMints(unit: 'sat', hexSeed: seed);
     if (mints.isEmpty) {
       emit(state.copyWith(mints: []));
       return;

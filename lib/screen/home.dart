@@ -201,7 +201,7 @@ class _Drawer extends StatelessWidget {
             listViewWidgets.add(
               ListTile(
                 title: Text(mint.info?.name ?? mint.url),
-                subtitle: Text('${mint.balance} sat'),
+                subtitle: (mint.balance != null) ? Text('${mint.balance} sat') : null,
                 onTap: () async {
                   final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
                   Navigator.pop(context);
