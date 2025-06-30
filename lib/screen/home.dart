@@ -252,7 +252,7 @@ class _Drawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: TextButton.icon(
                   icon: Icon(Icons.admin_panel_settings),
-                  label: Text('Manage mints'),
+                  label: Text('Manage a mint'),
                   onPressed: () {
                     // TODO: Implement mint management navigation
                   },

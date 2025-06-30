@@ -45,6 +45,7 @@ class WalletCubit extends Cubit<WalletState> {
     final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', db: db);
     await wallet.reclaimReserved();
     final mint = await wallet.getMint();
+    await loadMints();
     emit(state.copyWith(currentMint: mint));
     return wallet;
   }

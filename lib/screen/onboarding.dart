@@ -68,7 +68,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _searchQuery = query;
       _manualError = null;
     });
-    final isUrl = Uri.tryParse(query)?.hasAbsolutePath == true;
+    final uri = Uri.tryParse(query);
+    final isUrl = uri != null && uri.hasScheme && uri.host.isNotEmpty;
     final hasResults = _filteredMints(query).isNotEmpty;
     if (isUrl &&
         !hasResults &&
@@ -126,12 +127,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 labelText: 'Search or enter Mint URL',
                 prefixIcon: const Icon(Icons.search),
                 border: const OutlineInputBorder(),
-                suffixIcon: _isManualLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                      )
-                    : null,
               ),
               onChanged: _onSearchChanged,
               keyboardType: TextInputType.url,
@@ -152,10 +147,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       itemCount: filtered.length,
                       itemBuilder: (context, idx) {
                         final mint = filtered[idx];
-                        final name = mint.info.name?.toLowerCase();
-                        final url =
-                            mint.info.urls?.map((url) => url.toLowerCase()).toList().firstOrNull ??
-                            mint.url.toLowerCase();
+                        final name = mint.info.name;
+                        final url = mint.info.urls?.firstOrNull ?? mint.url;
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 6),
                           child: ListTile(
@@ -164,7 +157,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     mint.info.iconUrl!,
                                     width: 40,
                                     height: 40,
-                                    errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_wallet),
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.account_balance),
                                   )
                                 : const Icon(Icons.account_balance, size: 40),
                             title: Text(name ?? url),
