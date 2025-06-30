@@ -1,3 +1,6 @@
+build-ios:
+	flutter build ipa --dart-define-from-file=.env
+
 get-api-spec:
 	curl -o openapi.json https://api.satsapp.link/api-doc/openapi.json
 
