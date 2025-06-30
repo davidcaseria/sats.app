@@ -37,6 +37,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _showOnboarding = false;
   int _currentIndex = 0;
   bool _isLoading = true;
   Wallet? _wallet;
@@ -104,11 +105,15 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (_wallet == null) {
+    if (_showOnboarding || _wallet == null) {
       return OnboardingScreen(
         onJoinMint: (mintUrl) async {
           await _loadWallet(mintUrl: mintUrl);
+          setState(() {
+            _showOnboarding = false;
+          });
         },
+        showCancel: _wallet != null,
       );
     }
 
@@ -132,6 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
           onWalletSelected: (wallet) {
             setState(() {
               _wallet = wallet;
+            });
+          },
+          onShowOnboarding: () {
+            setState(() {
+              _showOnboarding = true;
             });
           },
         ),
@@ -167,8 +177,9 @@ class _MenuButton extends StatelessWidget {
 
 class _Drawer extends StatelessWidget {
   final Function(Wallet) onWalletSelected;
+  final VoidCallback onShowOnboarding;
 
-  const _Drawer({required this.onWalletSelected});
+  const _Drawer({required this.onWalletSelected, required this.onShowOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +218,6 @@ class _Drawer extends StatelessWidget {
             children: [
               DrawerHeader(
                 decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
-                margin: EdgeInsets.zero,
                 child: Column(
                   children: [
                     Text(
@@ -227,6 +237,28 @@ class _Drawer extends StatelessWidget {
                 ),
               ),
               ...listViewWidgets,
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.add),
+                  label: Text('Join another mint'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onShowOnboarding();
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: TextButton.icon(
+                  icon: Icon(Icons.admin_panel_settings),
+                  label: Text('Manage mints'),
+                  onPressed: () {
+                    // TODO: Implement mint management navigation
+                  },
+                ),
+              ),
+              SizedBox(height: 32),
             ],
           ),
         );

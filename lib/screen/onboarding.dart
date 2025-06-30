@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final Function(String mintUrl) onJoinMint;
+  final bool showCancel;
   static final List<String> _defaultMintUrls = [
     'https://mint.minibits.cash/Bitcoin',
     'https://mint.lnvoltz.com',
@@ -16,7 +17,7 @@ class OnboardingScreen extends StatefulWidget {
     'https://mint.westernbtc.com',
   ];
 
-  const OnboardingScreen({super.key, required this.onJoinMint});
+  const OnboardingScreen({super.key, required this.onJoinMint, this.showCancel = false});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -80,6 +81,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
       try {
         await _addMintByUrl(query);
+        setState(() {
+          _searchQuery = query;
+        });
       } catch (e) {
         setState(() {
           _manualError = 'Failed to load mint info.';
@@ -107,7 +111,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final filtered = _filteredMints(_searchQuery);
     return Scaffold(
-      appBar: AppBar(title: const Text('Join a Mint')),
+      appBar: AppBar(
+        title: const Text('Join a Mint'),
+        leading: widget.showCancel
+            ? IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).maybePop())
+            : null,
+      ),
       body: Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
         child: Column(
