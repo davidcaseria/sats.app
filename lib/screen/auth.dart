@@ -301,11 +301,34 @@ class _ConfirmationCodeScreen extends StatefulWidget {
 class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
   String code = '';
   bool isSubmitting = false;
+  final TextEditingController _pinController = TextEditingController();
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    super.dispose();
+  }
 
   void _submitCode() async {
     setState(() => isSubmitting = true);
     await context.read<UserCubit>().confirm(confirmationCode: code);
     setState(() => isSubmitting = false);
+  }
+
+  Future<void> _checkClipboardForCode() async {
+    final clipboardData = await Clipboard.getData('text/plain');
+    final text = clipboardData?.text ?? '';
+    final match = RegExp(r'\b(\d{6})\b').firstMatch(text);
+    if (match != null) {
+      final pastedCode = match.group(1)!;
+      if (pastedCode != code) {
+        setState(() {
+          code = pastedCode;
+          _pinController.text = pastedCode;
+        });
+        _submitCode();
+      }
+    }
   }
 
   @override
@@ -342,11 +365,15 @@ class _ConfirmationCodeScreenState extends State<_ConfirmationCodeScreen> {
                   children: [
                     Pinput(
                       length: 6,
+                      controller: _pinController,
                       onCompleted: (val) {
                         setState(() {
                           code = val;
                         });
                         _submitCode();
+                      },
+                      onTap: () {
+                        _checkClipboardForCode();
                       },
                       defaultPinTheme: PinTheme(
                         width: 40,
