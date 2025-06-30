@@ -63,6 +63,17 @@ class UserCubit extends Cubit<UserState> {
     } on AuthException catch (e) {
       emit(state.copyWith(status: AuthStatus.pendingConfirmation, error: e.message));
     }
+
+    try {
+      if ((await Amplify.Auth.fetchAuthSession()).isSignedIn) {
+        await fetchUserAttributes();
+        await fetchUserSettings();
+        await Amplify.Auth.rememberDevice();
+      }
+    } catch (e) {
+      safePrint('Error fetching user after confirmation: $e');
+      emit(state.copyWith(error: e.toString()));
+    }
   }
 
   Future<void> fetchUserAttributes() async {
