@@ -304,6 +304,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
   Future<void> fetchData() async {
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
+      await wallet.checkPendingTransactions();
       final transactions = await wallet.listTransactions();
       emit(state.copyWith(transactions: transactions, isLoading: false));
       final paymentRequests = await _api.listPaymentRequests();
