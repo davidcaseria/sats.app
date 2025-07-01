@@ -6,7 +6,7 @@ get-api-spec:
 
 gen-api-client:
 	openapi-generator-cli generate -i openapi.json -g dart-dio -o api_client --additional-properties=pubName=api_client,pubVersion=1.0.0
-	cd api_client && flutter pub run build_runner build --delete-conflicting-outputs
+	cd api_client && dart run build_runner build --delete-conflicting-outputs
 
 run:
 	flutter run --dart-define-from-file=.env
