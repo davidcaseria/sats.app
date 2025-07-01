@@ -62,8 +62,9 @@ class ApiService {
 
   Future<Uri> createRequestLink({required PaymentRequest request}) async {
     final res = await _sendRequest(request: request);
-    final id = res.id;
-    final uri = Uri.parse('${AppConfig.linkBaseUrl}/r/$id');
+    final idBytes = Uuid.parse(res.id);
+    final urlId = base64UrlEncode(idBytes).replaceAll('=', '');
+    final uri = Uri.parse('${AppConfig.linkBaseUrl}/r/$urlId');
     return uri;
   }
 
