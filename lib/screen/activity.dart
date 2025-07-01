@@ -1,3 +1,4 @@
+import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:api_client/api_client.dart' hide PaymentRequest;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
@@ -6,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
 import 'package:intl/intl.dart';
 import 'package:sats_app/api.dart';
+import 'package:sats_app/bloc/wallet.dart';
+import 'package:sats_app/config.dart';
 
 class ActivityScreen extends StatelessWidget {
   final Wallet wallet;
@@ -24,7 +27,13 @@ class ActivityScreen extends StatelessWidget {
 class _ActivityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<_ActivityCubit, _ActivityState>(
+    return BlocConsumer<_ActivityCubit, _ActivityState>(
+      listenWhen: (previous, current) => previous.isLoading != current.isLoading,
+      listener: (context, state) {
+        if (!state.isLoading) {
+          context.read<WalletCubit>().loadMints();
+        }
+      },
       builder: (context, state) {
         if (state.isLoading) {
           return Center(child: CircularProgressIndicator());
@@ -41,7 +50,7 @@ class _ActivityScreen extends StatelessWidget {
 }
 
 class _PaymentRequestsListView extends StatelessWidget {
-  final List<PaymentRequestResponse> paymentRequests;
+  final List<_PaymentRequest> paymentRequests;
 
   const _PaymentRequestsListView(this.paymentRequests);
 
@@ -61,14 +70,29 @@ class _PaymentRequestsListView extends StatelessWidget {
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
           final request = paymentRequests[index];
-          final req = PaymentRequest.parse(encoded: request.encoded);
+          final req = PaymentRequest.parse(encoded: request.data.encoded);
           return ListTile(
-            leading: CircleAvatar(child: Icon(Icons.person)),
-            title: Text(request.payeeUser.username),
+            leading: _CircleAvatar(
+              direction: (request.isPayer) ? TransactionDirection.outgoing : TransactionDirection.incoming,
+              isPending: false,
+              radius: 24.0,
+              userId: request.data.payeeUser.id,
+              backupIcon: Icon(Icons.link),
+            ),
+            title: Text(
+              req.description ??
+                  (request.isPayer
+                      ? 'Request from ${request.data.payeeUser.username}'
+                      : (request.data.payerUser != null)
+                      ? 'Request to ${request.data.payerUser?.username}'
+                      : 'Request Link'),
+            ),
             trailing: Text('${req.amount} sat', style: Theme.of(context).textTheme.bodyMedium),
-            onTap: () {
-              _showPaymentRequestSheet(context, request);
-            },
+            onTap: (request.isPayer && request.data.token == null)
+                ? () {
+                    _showPaymentRequestSheet(context, request.data);
+                  }
+                : null,
           );
         }, childCount: paymentRequests.length),
       ),
@@ -148,25 +172,13 @@ class _TransactionsListView extends StatelessWidget {
           : SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final transaction = transactions[index];
-                final icon = (transaction.direction == TransactionDirection.incoming)
-                    ? Icon(Icons.arrow_downward, color: Colors.green)
-                    : Icon(Icons.arrow_upward, color: Colors.red);
+                final userId = transaction.metadata['userId'];
 
                 Widget tile = ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(child: icon),
-                      if (transaction.status == TransactionStatus.pending)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Icon(
-                            Icons.hourglass_top,
-                            size: 16,
-                            color: (transaction.direction == TransactionDirection.incoming) ? Colors.green : Colors.red,
-                          ),
-                        ),
-                    ],
+                  leading: _CircleAvatar(
+                    direction: transaction.direction,
+                    isPending: transaction.status == TransactionStatus.pending,
+                    userId: userId,
                   ),
                   title: Text(
                     transaction.memo ??
@@ -293,6 +305,72 @@ class _ListViewHeader extends StatelessWidget {
   }
 }
 
+class _CircleAvatar extends StatelessWidget {
+  final TransactionDirection direction;
+  final bool isPending;
+  final double radius;
+  final String? userId;
+  final Widget? backupIcon;
+
+  const _CircleAvatar({
+    required this.direction,
+    this.isPending = false,
+    this.radius = 24.0,
+    this.userId,
+    this.backupIcon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bgColor = Theme.of(context).colorScheme.primary.withOpacity(0.10);
+
+    Widget avatarChild;
+    if (userId != null) {
+      avatarChild = ClipOval(
+        child: Image.network(
+          '${AppConfig.apiBaseUrl}/users/$userId/picture',
+          fit: BoxFit.cover,
+          width: radius * 2,
+          height: radius * 2,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: backupIcon ?? Icon(Icons.person, size: radius, color: Colors.grey[400]),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => Center(
+            child: backupIcon ?? Icon(Icons.person, size: radius, color: Colors.grey[400]),
+          ),
+        ),
+      );
+    } else {
+      avatarChild =
+          backupIcon ??
+          Icon(
+            (direction == TransactionDirection.incoming) ? Icons.arrow_downward : Icons.arrow_upward,
+            color: (direction == TransactionDirection.incoming) ? Colors.green : Colors.red,
+            size: radius,
+          );
+    }
+
+    return Stack(
+      children: [
+        CircleAvatar(radius: radius, backgroundColor: bgColor, child: avatarChild),
+        if (isPending)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Icon(
+              Icons.hourglass_top,
+              size: 16,
+              color: (direction == TransactionDirection.incoming) ? Colors.green : Colors.red,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ActivityCubit extends Cubit<_ActivityState> {
   final ApiService _api = ApiService();
   final Wallet wallet;
@@ -305,11 +383,23 @@ class _ActivityCubit extends Cubit<_ActivityState> {
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
       await wallet.checkPendingTransactions();
-      final transactions = await wallet.listTransactions();
-      emit(state.copyWith(transactions: transactions, isLoading: false));
-      final paymentRequests = await _api.listPaymentRequests();
-      emit(state.copyWith(paymentRequests: paymentRequests));
+      await _loadTransactionsAndPaymentRequests();
+
+      var tokenReceived = false;
+      for (final pr in state.paymentRequests) {
+        if (pr.data.token != null && !pr.isPayer) {
+          emit(state.copyWith(isLoading: true, clearError: true));
+          final token = Token.parse(encoded: pr.data.token!);
+          await wallet.receive(token: token);
+          tokenReceived = true;
+          await _api.deletePaymentRequest(id: pr.data.id);
+        }
+      }
+      if (tokenReceived) {
+        await _loadTransactionsAndPaymentRequests();
+      }
     } catch (e) {
+      safePrint('Error fetching activity data: $e');
       emit(state.copyWith(error: e.toString(), isLoading: false));
     }
   }
@@ -330,10 +420,30 @@ class _ActivityCubit extends Cubit<_ActivityState> {
   }
 
   Future<void> revertTransaction(Transaction transaction) => wallet.revertTransaction(transactionId: transaction.id);
+
+  Future<void> _loadTransactionsAndPaymentRequests() async {
+    try {
+      final transactions = await wallet.listTransactions();
+      emit(state.copyWith(transactions: transactions, isLoading: false));
+
+      final user = await Amplify.Auth.getCurrentUser();
+      final paymentRequests = await _api.listAllPaymentRequests();
+      emit(
+        state.copyWith(
+          paymentRequests: paymentRequests
+              .map((pr) => _PaymentRequest(data: pr, isPayer: pr.payerUser?.id == user.userId))
+              .toList(),
+        ),
+      );
+    } catch (e) {
+      safePrint('Error loading transactions and payment requests: $e');
+      emit(state.copyWith(error: e.toString(), isLoading: false));
+    }
+  }
 }
 
 class _ActivityState {
-  final List<PaymentRequestResponse> paymentRequests;
+  final List<_PaymentRequest> paymentRequests;
   final List<Transaction> transactions;
   final bool isLoading;
   final PreparedSend? preparedSend;
@@ -350,7 +460,7 @@ class _ActivityState {
   });
 
   _ActivityState copyWith({
-    List<PaymentRequestResponse>? paymentRequests,
+    List<_PaymentRequest>? paymentRequests,
     List<Transaction>? transactions,
     bool? isLoading,
     PreparedSend? preparedSend,
@@ -398,6 +508,13 @@ class _ActivityState {
   String formattedTotalSatAmount() {
     return '${NumberFormat('#,##0').format(totalSatAmount.toInt())} sat';
   }
+}
+
+class _PaymentRequest {
+  final PaymentRequestResponse data;
+  final bool isPayer;
+
+  _PaymentRequest({required this.data, required this.isPayer});
 }
 
 String _humanizeTimestamp(BigInt unixTimestamp) {

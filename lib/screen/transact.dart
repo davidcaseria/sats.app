@@ -34,12 +34,14 @@ class TransactScreen extends StatelessWidget {
 class _TransactScreen extends StatelessWidget {
   Future<void> _showSheet(BuildContext context) async {
     final cubit = context.read<_TransactCubit>();
+    final walletCubit = context.read<WalletCubit>();
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       enableDrag: false,
       builder: (context) => BlocProvider.value(value: cubit, child: _ActionSheet()),
     ).whenComplete(() async {
+      walletCubit.loadMints();
       await Future.delayed(Duration(milliseconds: 300));
       cubit.clear();
     });

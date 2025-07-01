@@ -68,20 +68,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _searchQuery = query;
       _manualError = null;
     });
-    final uri = Uri.tryParse(query);
-    final isUrl = uri != null && uri.hasScheme && uri.host.isNotEmpty;
+    // Add https:// if missing
+    String urlToTry = query.trim();
+    final uri = Uri.tryParse(urlToTry);
+    if (uri == null || !uri.hasScheme) {
+      urlToTry = 'https://$urlToTry';
+    }
+    final parsedUri = Uri.tryParse(urlToTry);
+    final isUrl = parsedUri != null && parsedUri.hasScheme && parsedUri.host.isNotEmpty;
     final hasResults = _filteredMints(query).isNotEmpty;
     if (isUrl &&
         !hasResults &&
         !_isManualLoading &&
-        !_loadingUrls.contains(query) &&
-        !_mints.any((m) => m.url == query)) {
+        !_loadingUrls.contains(urlToTry) &&
+        !_mints.any((m) => m.url == urlToTry)) {
       setState(() {
         _isManualLoading = true;
         _manualError = null;
       });
       try {
-        await _addMintByUrl(query);
+        await _addMintByUrl(urlToTry);
         setState(() {
           _searchQuery = query;
         });

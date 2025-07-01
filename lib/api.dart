@@ -68,8 +68,20 @@ class ApiService {
     return uri;
   }
 
-  Future<List<PaymentRequestResponse>> listPaymentRequests() async {
-    final response = await _apiClient.listPaymentRequests(f: UserPayFilter.payer);
+  Future<void> deletePaymentRequest({required String id}) async {
+    try {
+      await _apiClient.deletePaymentRequest(id: id);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        safePrint('Payment request with id $id not found, it may have already been deleted.');
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<List<PaymentRequestResponse>> listAllPaymentRequests() async {
+    final response = await _apiClient.listPaymentRequests(f: UserPayFilter.all);
     return response.data!.toList();
   }
 
