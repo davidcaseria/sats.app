@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:api_client/api_client.dart' hide PaymentRequest;
+import 'package:built_collection/built_collection.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:dio/dio.dart';
@@ -107,6 +108,11 @@ class ApiService {
       ..payerUserId = payerUserId;
     final response = await _apiClient.createPaymentRequest(paymentRequest: req.build());
     return response.data!;
+  }
+
+  Future<void> uploadProfilePicture({required String userId, required List<int> imageBytes}) async {
+    final request = UploadProfilePictureRequestBuilder()..bytes = ListBuilder<int>(imageBytes);
+    await _apiClient.uploadProfilePicture(id: userId, uploadProfilePictureRequest: request.build());
   }
 
   Future<void> _sendToken({

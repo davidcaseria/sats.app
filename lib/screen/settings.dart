@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:sats_app/api.dart';
 import 'package:sats_app/config.dart';
 import '../bloc/user.dart';
 import '../storage.dart';
@@ -34,17 +36,36 @@ class SettingsScreen extends StatelessWidget {
                 BlocBuilder<UserCubit, UserState>(
                   buildWhen: (previous, current) => previous.id != current.id,
                   builder: (context, state) {
-                    return CircleAvatar(
-                      radius: 48,
-                      backgroundColor: Colors.grey[200],
-                      child: ClipOval(
-                        child: Image.network(
-                          '${AppConfig.apiBaseUrl}/users/${state.id}/picture',
-                          fit: BoxFit.cover,
-                          width: 96,
-                          height: 96,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(Icons.person, size: 64, color: Colors.grey[500]),
+                    return GestureDetector(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          final bytes = await image.readAsBytes();
+                          try {
+                            await ApiService().uploadProfilePicture(userId: state.id!, imageBytes: bytes);
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to upload profile picture: $e'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: CircleAvatar(
+                        radius: 48,
+                        backgroundColor: Colors.grey[200],
+                        child: ClipOval(
+                          child: Image.network(
+                            '${AppConfig.apiBaseUrl}/users/${state.id}/picture',
+                            fit: BoxFit.cover,
+                            width: 96,
+                            height: 96,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Icon(Icons.person, size: 64, color: Colors.grey[500]),
+                          ),
                         ),
                       ),
                     );

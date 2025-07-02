@@ -1,8 +1,8 @@
 build target:
 	flutter build {{target}} --dart-define-from-file=.env
 
-get-api-spec:
-	curl -o openapi.json https://api.satsapp.link/api-doc/openapi.json
+get-api-spec url="https://api.satsapp.link/api-doc/openapi.json":
+	curl -o openapi.json {{url}}
 
 gen-api-client:
 	openapi-generator-cli generate -i openapi.json -g dart-dio -o api_client --additional-properties=pubName=api_client,pubVersion=1.0.0
