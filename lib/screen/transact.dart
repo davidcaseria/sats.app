@@ -1139,6 +1139,7 @@ class _TransactCubit extends Cubit<_TransactState> {
         break;
       case _TransactMethod.username:
         _api.sendRequestToUser(request: paymentRequest, payerUserId: state.user!.id);
+        emit(state.copyWith(actionState: _ActionState.success, actionMsg: 'Request sent!').clearTransaction());
         break;
       case _TransactMethod.qrCode:
         emit(state.copyWith(paymentRequest: paymentRequest));
