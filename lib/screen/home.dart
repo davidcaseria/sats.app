@@ -113,7 +113,13 @@ class _HomeScreenState extends State<HomeScreen> {
             _showOnboarding = false;
           });
         },
-        showCancel: _wallet != null,
+        onCancel: _wallet != null
+            ? () {
+                setState(() {
+                  _showOnboarding = false;
+                });
+              }
+            : null,
       );
     }
 

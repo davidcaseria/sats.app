@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final Function(String mintUrl) onJoinMint;
-  final bool showCancel;
+  final VoidCallback? onCancel;
   static final List<String> _defaultMintUrls = [
     'https://mint.minibits.cash/Bitcoin',
     'https://mint.lnvoltz.com',
@@ -17,7 +17,7 @@ class OnboardingScreen extends StatefulWidget {
     'https://mint.westernbtc.com',
   ];
 
-  const OnboardingScreen({super.key, required this.onJoinMint, this.showCancel = false});
+  const OnboardingScreen({super.key, required this.onJoinMint, this.onCancel});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -68,7 +68,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       _searchQuery = query;
       _manualError = null;
     });
-    // Add https:// if missing
     String urlToTry = query.trim();
     final uri = Uri.tryParse(urlToTry);
     if (uri == null || !uri.hasScheme) {
@@ -120,9 +119,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Join a Mint'),
-        leading: widget.showCancel
-            ? IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).maybePop())
-            : null,
+        leading: widget.onCancel != null ? IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel) : null,
       ),
       body: Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
