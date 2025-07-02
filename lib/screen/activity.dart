@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/config.dart';
+import 'package:sats_app/storage.dart';
 
 class ActivityScreen extends StatelessWidget {
   final Wallet wallet;
@@ -385,12 +386,21 @@ class _ActivityCubit extends Cubit<_ActivityState> {
       await wallet.checkPendingTransactions();
       await _loadTransactionsAndPaymentRequests();
 
+      final storage = AppStorage();
+      final seed = await storage.getSeed();
+      final signingKeys = <String>[];
+      if (seed != null) {
+        signingKeys.add(seed);
+      }
       var tokenReceived = false;
       for (final pr in state.paymentRequests) {
         if (pr.data.token != null && !pr.isPayer) {
           emit(state.copyWith(isLoading: true, clearError: true));
           final token = Token.parse(encoded: pr.data.token!);
-          await wallet.receive(token: token);
+          await wallet.receive(
+            token: token,
+            opts: ReceiveOptions(signingKeys: signingKeys),
+          );
           tokenReceived = true;
           await _api.deletePaymentRequest(id: pr.data.id);
         }
