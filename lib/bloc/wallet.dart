@@ -13,10 +13,14 @@ class WalletCubit extends Cubit<WalletState> {
 
   void handleAppLink(Uri uri) {
     try {
-      emit(state.copyWith(appLinkInput: parseInput(input: uri.toString())));
+      emit(state.copyWith(inputResult: parseInput(input: uri.toString())));
     } catch (e) {
       safePrint('Error parsing input: $e');
     }
+  }
+
+  void handleInput(ParseInputResult inputResult) {
+    emit(state.copyWith(inputResult: inputResult));
   }
 
   Future<void> loadMints() async {
@@ -60,18 +64,18 @@ class WalletCubit extends Cubit<WalletState> {
 }
 
 class WalletState {
-  ParseInputResult? appLinkInput;
+  ParseInputResult? inputResult;
   Mint? currentMint;
   List<Mint>? mints;
 
-  WalletState({this.appLinkInput, this.currentMint, this.mints});
+  WalletState({this.inputResult, this.currentMint, this.mints});
 
   String? get currentMintUrl {
     return currentMint?.url;
   }
 
   bool get hasInput {
-    return appLinkInput != null;
+    return inputResult != null;
   }
 
   List<String> get mintUrls {
@@ -82,9 +86,9 @@ class WalletState {
     return mints?.any((m) => m.url == mintUrl) ?? false;
   }
 
-  WalletState copyWith({ParseInputResult? appLinkInput, Mint? currentMint, List<Mint>? mints}) {
+  WalletState copyWith({ParseInputResult? inputResult, Mint? currentMint, List<Mint>? mints}) {
     return WalletState(
-      appLinkInput: appLinkInput ?? this.appLinkInput,
+      inputResult: inputResult ?? this.inputResult,
       currentMint: currentMint ?? this.currentMint,
       mints: mints ?? this.mints,
     );

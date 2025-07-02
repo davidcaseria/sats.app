@@ -58,14 +58,14 @@ class _TransactScreen extends StatelessWidget {
     return MultiBlocListener(
       listeners: [
         BlocListener<WalletCubit, WalletState>(
-          listenWhen: (previous, current) => previous.appLinkInput != current.appLinkInput,
+          listenWhen: (previous, current) => previous.inputResult != current.inputResult,
           listener: (context, state) {
-            if (state.appLinkInput != null) {
+            if (state.inputResult != null) {
               switchForPaymentRequest(PaymentRequest request) =>
                   (request.mints == null || request.mints!.isEmpty || request.mints!.contains(state.currentMintUrl))
                   ? null
                   : request.mints!.firstWhere((mintUrl) => state.hasMint(mintUrl), orElse: () => request.mints!.first);
-              final switchWalletMintUrl = state.appLinkInput!.when(
+              final switchWalletMintUrl = state.inputResult!.when(
                 bitcoinAddress: (address) => (address.cashu != null) ? switchForPaymentRequest(address.cashu!) : null,
                 bolt11Invoice: (invoice) => null,
                 paymentRequest: switchForPaymentRequest,
@@ -88,7 +88,7 @@ class _TransactScreen extends StatelessWidget {
                   switchWallet(switchWalletMintUrl);
                 }
               } else {
-                context.read<_TransactCubit>().parseInput(state.appLinkInput!);
+                context.read<_TransactCubit>().handleInput(state.inputResult!);
                 context.read<WalletCubit>().clearInput();
               }
             }
@@ -389,10 +389,10 @@ class _ActionButtonsRow extends StatelessWidget {
             height: 50,
             child: CupertinoButton(
               onPressed: () async {
-                final cubit = context.read<_TransactCubit>();
+                final cubit = context.read<WalletCubit>(); // Use WalletCubit to work with all mints
                 final result = await Navigator.of(context).push(QrScannerScreen.route());
                 if (result != null) {
-                  cubit.parseInput(result);
+                  cubit.handleInput(result);
                 }
               },
               padding: EdgeInsets.zero,
@@ -1111,7 +1111,7 @@ class _TransactCubit extends Cubit<_TransactState> {
     emit(state.copyWith(action: _TransactAction.request));
   }
 
-  void parseInput(ParseInputResult result) {
+  void handleInput(ParseInputResult result) {
     result.when(
       bitcoinAddress: (address) async {
         if (address.cashu != null &&

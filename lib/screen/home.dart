@@ -45,7 +45,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadWallet({String? mintUrl}) async {
     try {
+      setState(() {
+        _isLoading = true;
+        _showRecovery = false;
+        _showOnboarding = false;
+        _wallet = null;
+      });
+
       final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mintUrl);
+
       setState(() {
         _wallet = wallet;
         _isLoading = false;
@@ -66,6 +74,9 @@ class _HomeScreenState extends State<HomeScreen> {
       safePrint('Error loading wallet: $e');
       setState(() {
         _isLoading = false;
+        _showRecovery = false;
+        _wallet = null;
+        _showOnboarding = true;
       });
     }
   }
@@ -214,16 +225,20 @@ class _Drawer extends StatelessWidget {
                 trailing: (mint.url == state.currentMintUrl || mint.balance == null || mint.balance! > BigInt.zero)
                     ? null
                     : IconButton(
-                        onPressed: () async {
-                          await context.read<WalletCubit>().removeMint(mint.url);
-                        },
+                        onPressed: (state.currentMintUrl != mint.url)
+                            ? () async {
+                                await context.read<WalletCubit>().removeMint(mint.url);
+                              }
+                            : null,
                         icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.error),
                       ),
-                onTap: () async {
-                  final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
-                  Navigator.pop(context);
-                  onWalletSelected(wallet);
-                },
+                onTap: (state.currentMintUrl != mint.url)
+                    ? () async {
+                        final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
+                        Navigator.pop(context);
+                        onWalletSelected(wallet);
+                      }
+                    : null,
               ),
             );
           }
