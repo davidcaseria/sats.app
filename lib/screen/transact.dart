@@ -616,7 +616,13 @@ class _ActionSheetUsernameSearch extends StatelessWidget {
       padding: EdgeInsetsGeometry.only(left: 8, right: 8),
       child: SearchableList<UserResponse>.async(
         searchTextController: _controller,
-        asyncListCallback: () => _api.searchUsers(query: _controller.text),
+        asyncListCallback: () async {
+          final searchText = _controller.text.trim();
+          if (searchText.isEmpty) {
+            return <UserResponse>[];
+          }
+          return await _api.searchUsers(query: searchText);
+        },
         asyncListFilter: (q, list) =>
             list.where((user) => user.username.toLowerCase().contains(q.toLowerCase())).toList(),
         itemBuilder: (user) => ListTile(
@@ -630,7 +636,9 @@ class _ActionSheetUsernameSearch extends StatelessWidget {
           prefixIcon: Icon(Icons.search),
         ),
         loadingWidget: Center(child: CircularProgressIndicator()),
-        emptyWidget: Center(child: Text('No users found')),
+        emptyWidget: (_controller.text.trim().isEmpty)
+            ? Center(child: Text('Search for Users'))
+            : Center(child: Text('No users found')),
         errorWidget: Center(
           child: Text(
             'Error loading users',
