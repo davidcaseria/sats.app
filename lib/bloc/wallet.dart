@@ -70,8 +70,16 @@ class WalletState {
     return currentMint?.url;
   }
 
+  bool get hasInput {
+    return appLinkInput != null;
+  }
+
   List<String> get mintUrls {
     return mints?.map((m) => m.url).toList() ?? [];
+  }
+
+  bool hasMint(String mintUrl) {
+    return mints?.any((m) => m.url == mintUrl) ?? false;
   }
 
   WalletState copyWith({ParseInputResult? appLinkInput, Mint? currentMint, List<Mint>? mints}) {

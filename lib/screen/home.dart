@@ -73,7 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget get _page {
     switch (_currentIndex) {
       case 0:
-        return TransactScreen(wallet: _wallet!);
+        return TransactScreen(
+          wallet: _wallet!,
+          switchWallet: (mintUrl) => _loadWallet(mintUrl: mintUrl),
+        );
       case 1:
         return ActivityScreen(wallet: _wallet!);
       default:
