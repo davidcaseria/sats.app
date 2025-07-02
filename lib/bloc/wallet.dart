@@ -51,6 +51,12 @@ class WalletCubit extends Cubit<WalletState> {
     emit(state.copyWith(currentMint: mint));
     return wallet;
   }
+
+  Future<void> removeMint(String mintUrl) async {
+    final mints = state.mints?.where((m) => m.url != mintUrl).toList() ?? [];
+    await db.removeMint(mintUrl: mintUrl);
+    emit(state.copyWith(mints: mints));
+  }
 }
 
 class WalletState {

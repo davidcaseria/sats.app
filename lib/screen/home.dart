@@ -208,6 +208,14 @@ class _Drawer extends StatelessWidget {
               ListTile(
                 title: Text(mint.info?.name ?? mint.url),
                 subtitle: (mint.balance != null) ? Text('${mint.balance} sat') : null,
+                trailing: (mint.url == state.currentMintUrl || mint.balance == null || mint.balance! > BigInt.zero)
+                    ? null
+                    : IconButton(
+                        onPressed: () async {
+                          await context.read<WalletCubit>().removeMint(mint.url);
+                        },
+                        icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.error),
+                      ),
                 onTap: () async {
                   final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
                   Navigator.pop(context);
