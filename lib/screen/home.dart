@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:animated_digit/animated_digit.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
@@ -37,146 +36,95 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _showOnboarding = false;
   int _currentIndex = 0;
-  bool _isLoading = true;
-  Wallet? _wallet;
-  bool _showRecovery = false;
-
-  Future<void> _loadWallet({String? mintUrl}) async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _showRecovery = false;
-        _showOnboarding = false;
-        _wallet = null;
-      });
-
-      final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mintUrl);
-
-      setState(() {
-        _wallet = wallet;
-        _isLoading = false;
-        _showRecovery = false;
-      });
-    } on SeedNotFoundException {
-      setState(() {
-        _isLoading = false;
-        _showRecovery = true;
-      });
-    } on MintUrlNotFoundException {
-      setState(() {
-        _isLoading = false;
-        _showRecovery = false;
-        _wallet = null;
-      });
-    } catch (e) {
-      safePrint('Error loading wallet: $e');
-      setState(() {
-        _isLoading = false;
-        _showRecovery = false;
-        _wallet = null;
-        _showOnboarding = true;
-      });
-    }
-  }
+  bool _showOnboarding = false;
 
   Widget get _page {
     switch (_currentIndex) {
       case 0:
-        return TransactScreen(
-          wallet: _wallet!,
-          switchWallet: (mintUrl) => _loadWallet(mintUrl: mintUrl),
-        );
+        return TransactScreen();
       case 1:
-        return ActivityScreen(wallet: _wallet!);
+        return ActivityScreen();
       default:
         return const Center(child: Text('Unknown page'));
     }
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadWallet();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Center(child: CircularProgressIndicator());
-    }
+    return BlocBuilder<WalletCubit, WalletState>(
+      builder: (context, state) {
+        final walletCubit = context.read<WalletCubit>();
+        final wallet = state.wallet;
 
-    if (_showRecovery) {
-      return RecoveryScreen(
-        onRecovered: () async {
-          setState(() {
-            _isLoading = true;
-            _showRecovery = false;
-          });
-          await _loadWallet();
-        },
-      );
-    }
+        if (state.isLoading) {
+          return Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
 
-    if (_showOnboarding || _wallet == null) {
-      return OnboardingScreen(
-        onJoinMint: (mintUrl) async {
-          await _loadWallet(mintUrl: mintUrl);
-          setState(() {
-            _showOnboarding = false;
-          });
-        },
-        onCancel: _wallet != null
-            ? () {
+        if (state.hasSeed == false) {
+          return RecoveryScreen();
+        }
+
+        if (_showOnboarding || state.currentMint == null || wallet == null) {
+          return OnboardingScreen(
+            onJoinMint: (mintUrl) async {
+              await walletCubit.switchMint(mintUrl);
+              setState(() {
+                _currentIndex = 0;
+                _showOnboarding = false;
+              });
+            },
+            onCancel: () {
+              setState(() {
+                _showOnboarding = false;
+              });
+            },
+          );
+        }
+
+        return WalletProvider(
+          wallet: wallet,
+          child: Scaffold(
+            body: _page,
+            appBar: AppBar(
+              leading: _MenuButton(),
+              title: _AppBarTitle(wallet: wallet),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.push(context, SettingsScreen.route());
+                  },
+                ),
+              ],
+            ),
+            drawer: _Drawer(
+              onMintSelected: (mintUrl) async {
+                await walletCubit.switchMint(mintUrl);
                 setState(() {
-                  _showOnboarding = false;
+                  _currentIndex = 0;
                 });
-              }
-            : null,
-      );
-    }
-
-    return WalletProvider(
-      wallet: _wallet!,
-      child: Scaffold(
-        body: _page,
-        appBar: AppBar(
-          leading: _MenuButton(),
-          title: _AppBarTitle(wallet: _wallet!),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.settings),
-              onPressed: () {
-                Navigator.push(context, SettingsScreen.route());
+              },
+              onShowOnboarding: () {
+                setState(() {
+                  _showOnboarding = true;
+                });
               },
             ),
-          ],
-        ),
-        drawer: _Drawer(
-          onWalletSelected: (wallet) {
-            setState(() {
-              _wallet = wallet;
-            });
-          },
-          onShowOnboarding: () {
-            setState(() {
-              _showOnboarding = true;
-            });
-          },
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: [
-            BottomNavigationBarItem(
-              icon: Transform.rotate(angle: -pi / 4, child: Icon(Icons.swap_horiz)),
-              label: 'Transact',
+            bottomNavigationBar: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (index) => setState(() => _currentIndex = index),
+              items: [
+                BottomNavigationBarItem(
+                  icon: Transform.rotate(angle: -pi / 4, child: Icon(Icons.swap_horiz)),
+                  label: 'Transact',
+                ),
+                BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Activity'),
+              ],
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Activity'),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -196,10 +144,10 @@ class _MenuButton extends StatelessWidget {
 }
 
 class _Drawer extends StatelessWidget {
-  final Function(Wallet) onWalletSelected;
+  final void Function(String) onMintSelected;
   final VoidCallback onShowOnboarding;
 
-  const _Drawer({required this.onWalletSelected, required this.onShowOnboarding});
+  const _Drawer({required this.onMintSelected, required this.onShowOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -234,9 +182,7 @@ class _Drawer extends StatelessWidget {
                       ),
                 onTap: (state.currentMintUrl != mint.url)
                     ? () async {
-                        final wallet = await context.read<WalletCubit>().loadWallet(mintUrl: mint.url);
-                        Navigator.pop(context);
-                        onWalletSelected(wallet);
+                        onMintSelected(mint.url);
                       }
                     : null,
               ),

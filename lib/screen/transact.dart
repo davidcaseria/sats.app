@@ -19,48 +19,33 @@ import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:searchable_listview/searchable_listview.dart';
 
-typedef SwitchWalletCallback = Future<void> Function(String mintUrl);
-
 class TransactScreen extends StatelessWidget {
-  final Wallet wallet;
-  final SwitchWalletCallback switchWallet;
-
-  const TransactScreen({super.key, required this.wallet, required this.switchWallet});
+  const TransactScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => _TransactCubit(wallet: wallet),
-      child: _TransactScreen(switchWallet: switchWallet),
+    return BlocBuilder<WalletCubit, WalletState>(
+      buildWhen: (previous, current) => previous.wallet != current.wallet,
+      builder: (context, state) {
+        return BlocProvider(
+          create: (_) => _TransactCubit(wallet: state.wallet!),
+          child: _TransactScreen(),
+        );
+      },
     );
   }
 }
 
 class _TransactScreen extends StatelessWidget {
-  final SwitchWalletCallback switchWallet;
-
-  const _TransactScreen({required this.switchWallet});
-
-  Future<void> _showSheet(BuildContext context) async {
-    final cubit = context.read<_TransactCubit>();
-    final walletCubit = context.read<WalletCubit>();
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      enableDrag: false,
-      builder: (context) => BlocProvider.value(value: cubit, child: _ActionSheet()),
-    ).whenComplete(() async {
-      walletCubit.loadMints();
-      await Future.delayed(Duration(milliseconds: 300));
-      cubit.clear();
-    });
-  }
+  const _TransactScreen();
 
   @override
   Widget build(BuildContext context) {
+    _maybeHandleInput(context);
     return MultiBlocListener(
       listeners: [
         BlocListener<WalletCubit, WalletState>(
+          listenWhen: (previous, current) => previous.inputResult != current.inputResult,
           listener: (context, state) async {
             safePrint("WalletCubit inputResult changed: ${state.inputResult}");
             if (state.inputResult != null) {
@@ -72,12 +57,12 @@ class _TransactScreen extends StatelessWidget {
                   final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
                   safePrint("Trust new mint dialog result: $isTrusted");
                   if (isTrusted == true) {
-                    await switchWallet(mintUrl);
+                    await walletCubit.handleInput(state.inputResult!, mintUrl: mintUrl);
                   } else {
                     walletCubit.clearInput();
                   }
                 } else {
-                  await switchWallet(mintUrl);
+                  await walletCubit.handleInput(state.inputResult!, mintUrl: mintUrl);
                 }
               } else {
                 context.read<_TransactCubit>().handleInput(state.inputResult!);
@@ -101,10 +86,36 @@ class _TransactScreen extends StatelessWidget {
           SizedBox(height: 90, child: _RequestDisplay()),
           Expanded(flex: 2, child: _AmountDisplay()),
           Expanded(flex: 4, child: _NumberPad()),
-          _ActionButtonsRow(switchWallet: switchWallet),
+          _ActionButtonsRow(),
         ],
       ),
     );
+  }
+
+  void _maybeHandleInput(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cubit = context.read<_TransactCubit>();
+      final walletCubit = context.read<WalletCubit>();
+      if (walletCubit.state.inputResult != null) {
+        cubit.handleInput(walletCubit.state.inputResult!);
+        walletCubit.clearInput();
+      }
+    });
+  }
+
+  Future<void> _showSheet(BuildContext context) async {
+    final cubit = context.read<_TransactCubit>();
+    final walletCubit = context.read<WalletCubit>();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      builder: (context) => BlocProvider.value(value: cubit, child: _ActionSheet()),
+    ).whenComplete(() async {
+      walletCubit.loadMints();
+      await Future.delayed(Duration(milliseconds: 300));
+      cubit.clear();
+    });
   }
 }
 
@@ -263,9 +274,7 @@ class _BackspaceButton extends StatelessWidget {
 }
 
 class _ActionButtonsRow extends StatelessWidget {
-  final SwitchWalletCallback switchWallet;
-
-  const _ActionButtonsRow({required this.switchWallet});
+  const _ActionButtonsRow();
 
   @override
   Widget build(BuildContext context) {
@@ -291,25 +300,14 @@ class _ActionButtonsRow extends StatelessWidget {
             width: 50,
             height: 50,
             child: CupertinoButton(
-              onPressed: () async {
-                final cubit = context.read<WalletCubit>(); // Use WalletCubit to work with all mints
-                final result = await Navigator.of(context).push(QrScannerScreen.route());
-                if (result != null) {
-                  cubit.handleInput(result);
-                }
-              },
+              onPressed: () => Navigator.of(context).push(QrScannerScreen.route()),
               padding: EdgeInsets.zero,
               child: Icon(Icons.qr_code_scanner, size: 24),
             ),
           ),
           SizedBox(width: 16),
           Expanded(
-            child: _ActionButton(
-              onPressed: () async {
-                context.read<_TransactCubit>().payPressed();
-              },
-              text: 'Pay',
-            ),
+            child: _ActionButton(onPressed: () => context.read<_TransactCubit>().payPressed(), text: 'Pay'),
           ),
         ],
       ),
@@ -982,6 +980,7 @@ class _ActionSheetAnimatedQrCodeState extends State<_ActionSheetAnimatedQrCode> 
 class _TransactCubit extends Cubit<_TransactState> {
   final ApiService _api = ApiService();
   final Wallet wallet;
+
   _TransactCubit({required this.wallet}) : super(_TransactState(satAmount: BigInt.zero));
 
   void numberPressed(int number) {

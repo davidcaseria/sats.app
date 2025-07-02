@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -32,14 +33,16 @@ class _QrScannerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
         title: const Text('Scan QR Code'),
         actions: [
           IconButton(
             icon: const Icon(Icons.paste),
             onPressed: () async {
+              final cubit = context.read<_QrScannerCubit>();
               final clipboardData = await Clipboard.getData('text/plain');
               if (clipboardData?.text != null) {
-                context.read<_QrScannerCubit>().parseQrInput(clipboardData!.text!);
+                cubit.parseQrInput(clipboardData!.text!);
               }
             },
           ),
@@ -65,7 +68,8 @@ class _QrScannerScreen extends StatelessWidget {
               }
               final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
               if (isTrusted == true) {
-                await walletCubit.loadWallet(mintUrl: mintUrl, switchMint: false);
+                safePrint('QR Scanner: Trusted mint found: $mintUrl');
+                await walletCubit.handleInput(state.result!, mintUrl: mintUrl);
                 navigator.pop(state.result);
               } else {
                 cubit.clear();

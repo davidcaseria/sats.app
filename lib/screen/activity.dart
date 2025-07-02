@@ -12,15 +12,18 @@ import 'package:sats_app/config.dart';
 import 'package:sats_app/storage.dart';
 
 class ActivityScreen extends StatelessWidget {
-  final Wallet wallet;
-
-  const ActivityScreen({super.key, required this.wallet});
+  const ActivityScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => _ActivityCubit(wallet: wallet),
-      child: _ActivityScreen(),
+    return BlocBuilder<WalletCubit, WalletState>(
+      buildWhen: (previous, current) => previous.wallet != current.wallet,
+      builder: (context, state) {
+        return BlocProvider(
+          create: (_) => _ActivityCubit(wallet: state.wallet!),
+          child: _ActivityScreen(),
+        );
+      },
     );
   }
 }

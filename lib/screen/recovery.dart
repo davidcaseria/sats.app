@@ -1,15 +1,12 @@
+import 'package:bip39/bip39.dart' as bip39;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:bip39/bip39.dart' as bip39;
-import 'package:sats_app/storage.dart';
-
-// ...existing imports...
-import 'package:file_picker/file_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sats_app/bloc/wallet.dart';
 
 class RecoveryScreen extends StatefulWidget {
-  final VoidCallback onRecovered;
-
-  const RecoveryScreen({super.key, required this.onRecovered});
+  const RecoveryScreen({super.key});
 
   @override
   State<RecoveryScreen> createState() => _RecoveryScreenState();
@@ -58,12 +55,10 @@ class _RecoveryScreenState extends State<RecoveryScreen> {
     }
     try {
       final seedHex = bip39.mnemonicToSeedHex(mnemonic);
-      final storage = AppStorage();
-      await storage.setSeed(seedHex);
+      context.read<WalletCubit>().recoverSeed(seedHex);
       setState(() {
         _loading = false;
       });
-      widget.onRecovered();
     } catch (e) {
       setState(() {
         _loading = false;

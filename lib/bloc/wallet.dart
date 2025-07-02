@@ -5,7 +5,23 @@ import 'package:sats_app/storage.dart';
 
 class WalletCubit extends Cubit<WalletState> {
   final WalletDatabase db;
-  WalletCubit(this.db) : super(WalletState());
+  WalletCubit(this.db) : super(WalletState()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    emit(state.copyWith(isLoading: true));
+    final storage = AppStorage();
+    final mintUrl = await storage.getMintUrl();
+    final seed = await storage.getSeed();
+    if (seed != null && mintUrl != null) {
+      final wallet = await _loadWallet(mintUrl: mintUrl, seed: seed);
+      final mint = await wallet.getMint();
+      emit(state.copyWith(currentMint: mint, wallet: wallet));
+    }
+    await loadMints();
+    emit(state.copyWith(isLoading: false));
+  }
 
   void clearInput() {
     emit(state.clearInput());
@@ -19,7 +35,17 @@ class WalletCubit extends Cubit<WalletState> {
     }
   }
 
-  void handleInput(ParseInputResult inputResult) {
+  Future<void> handleInput(ParseInputResult inputResult, {String? mintUrl}) async {
+    safePrint('WalletCubit: Handling input: $inputResult, mintUrl: $mintUrl');
+    if (state.hasInput && state.inputResult != null) {
+      safePrint('WalletCubit: Ignoring further input, already has input');
+      return; // Already has input, ignore further inputs
+    }
+    if (mintUrl != null) {
+      await switchMint(mintUrl);
+    }
+
+    safePrint('WalletCubit: Emitting input result: $inputResult');
     emit(state.copyWith(inputResult: inputResult));
   }
 
@@ -33,29 +59,11 @@ class WalletCubit extends Cubit<WalletState> {
     emit(state.copyWith(mints: mints));
   }
 
-  Future<Wallet> loadWallet({String? mintUrl, bool switchMint = true}) async {
+  Future<void> recoverSeed(String seed) async {
     final storage = AppStorage();
-    final seed = await storage.getSeed();
-    if (seed == null) {
-      throw SeedNotFoundException();
-    }
-    if (mintUrl == null) {
-      mintUrl = await storage.getMintUrl();
-      if (mintUrl == null) {
-        throw MintUrlNotFoundException();
-      }
-    } else {
-      storage.setMintUrl(mintUrl);
-    }
-    final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', db: db);
-    await wallet.reclaimReserved();
-    await wallet.checkAllMintQuotes();
-    final mint = await wallet.getMint();
-    await loadMints();
-    if (switchMint) {
-      emit(state.copyWith(currentMint: mint));
-    }
-    return wallet;
+    storage.setSeed(seed);
+    emit(state.copyWith(hasSeed: true, isLoading: true));
+    await _init();
   }
 
   Future<void> removeMint(String mintUrl) async {
@@ -63,14 +71,39 @@ class WalletCubit extends Cubit<WalletState> {
     await db.removeMint(mintUrl: mintUrl);
     emit(state.copyWith(mints: mints));
   }
+
+  Future<void> switchMint(String mintUrl) async {
+    safePrint('WalletCubit: Switching mint to: $mintUrl');
+    emit(state.copyWith(isLoading: true));
+    final storage = AppStorage();
+    final seed = await storage.getSeed();
+    if (seed == null) {
+      emit(state.copyWith(isLoading: false));
+      return;
+    }
+    final wallet = await _loadWallet(mintUrl: mintUrl, seed: seed);
+    final mint = await wallet.getMint();
+    emit(state.copyWith(currentMint: mint, wallet: wallet, isLoading: false));
+    await storage.setMintUrl(mintUrl);
+  }
+
+  Future<Wallet> _loadWallet({required String mintUrl, required String seed}) async {
+    final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', db: db);
+    await wallet.reclaimReserved();
+    await wallet.checkAllMintQuotes();
+    return wallet;
+  }
 }
 
 class WalletState {
-  ParseInputResult? inputResult;
   Mint? currentMint;
+  bool? hasSeed;
+  ParseInputResult? inputResult;
+  bool isLoading;
   List<Mint>? mints;
+  Wallet? wallet;
 
-  WalletState({this.inputResult, this.currentMint, this.mints});
+  WalletState({this.currentMint, this.hasSeed, this.inputResult, this.isLoading = true, this.mints, this.wallet});
 
   String? get currentMintUrl {
     return currentMint?.url;
@@ -118,29 +151,25 @@ class WalletState {
     );
   }
 
-  WalletState copyWith({ParseInputResult? inputResult, Mint? currentMint, List<Mint>? mints}) {
+  WalletState copyWith({
+    Mint? currentMint,
+    bool? hasSeed,
+    ParseInputResult? inputResult,
+    bool? isLoading,
+    List<Mint>? mints,
+    Wallet? wallet,
+  }) {
     return WalletState(
-      inputResult: inputResult ?? this.inputResult,
       currentMint: currentMint ?? this.currentMint,
+      hasSeed: hasSeed ?? this.hasSeed,
+      inputResult: inputResult ?? this.inputResult,
+      isLoading: isLoading ?? this.isLoading,
       mints: mints ?? this.mints,
+      wallet: wallet ?? this.wallet,
     );
   }
 
   WalletState clearInput() {
-    return WalletState(currentMint: currentMint, mints: mints);
+    return WalletState(currentMint: currentMint, hasSeed: hasSeed, isLoading: isLoading, mints: mints, wallet: wallet);
   }
-}
-
-class SeedNotFoundException implements Exception {
-  final String message;
-  SeedNotFoundException([this.message = 'Seed not found. Please recover your wallet.']);
-  @override
-  String toString() => message;
-}
-
-class MintUrlNotFoundException implements Exception {
-  final String message;
-  MintUrlNotFoundException([this.message = 'Mint URL not found. Please set up your wallet first.']);
-  @override
-  String toString() => message;
 }
