@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/bloc/wallet.dart';
+import 'package:sats_app/config.dart';
 import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
@@ -1126,7 +1127,7 @@ class _TransactCubit extends Cubit<_TransactState> {
       unit: 'sat',
       singleUse: true,
       description: state.memo,
-      transports: [Transport(type: TransportType.httpPost, target: 'https://pay.satsapp.link/$id')],
+      transports: [Transport(type: TransportType.httpPost, target: '${AppConfig.payLinkBaseUrl}/$id')],
       nut10: nut10,
     );
 
