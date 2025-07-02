@@ -33,7 +33,7 @@ class WalletCubit extends Cubit<WalletState> {
     emit(state.copyWith(mints: mints));
   }
 
-  Future<Wallet> loadWallet({String? mintUrl}) async {
+  Future<Wallet> loadWallet({String? mintUrl, bool switchMint = true}) async {
     final storage = AppStorage();
     final seed = await storage.getSeed();
     if (seed == null) {
@@ -52,7 +52,9 @@ class WalletCubit extends Cubit<WalletState> {
     await wallet.checkAllMintQuotes();
     final mint = await wallet.getMint();
     await loadMints();
-    emit(state.copyWith(currentMint: mint));
+    if (switchMint) {
+      emit(state.copyWith(currentMint: mint));
+    }
     return wallet;
   }
 
@@ -84,6 +86,36 @@ class WalletState {
 
   bool hasMint(String mintUrl) {
     return mints?.any((m) => m.url == mintUrl) ?? false;
+  }
+
+  bool isTrustedMintInput(ParseInputResult input) {
+    isTrustedForPaymentRequest(PaymentRequest request) => false;
+    return input.when(
+      bitcoinAddress: (address) => (address.cashu != null) ? isTrustedForPaymentRequest(address.cashu!) : true,
+      bolt11Invoice: (_) => true,
+      paymentRequest: (request) => isTrustedForPaymentRequest(request),
+      token: (token) => hasMint(token.mintUrl),
+    );
+  }
+
+  String? selectMintForInput(ParseInputResult input) {
+    selectMintForPaymentRequest(PaymentRequest request) {
+      if (request.mints == null || request.mints!.isEmpty) {
+        return currentMint?.url;
+      }
+      if (request.mints!.contains(currentMint?.url)) {
+        return currentMint?.url;
+      }
+      return mintUrls.firstWhere((url) => request.mints!.contains(url), orElse: () => request.mints!.first);
+    }
+
+    return input.when(
+      bitcoinAddress: (address) =>
+          (address.cashu != null) ? selectMintForPaymentRequest(address.cashu!) : currentMint?.url,
+      bolt11Invoice: (_) => currentMint?.url,
+      paymentRequest: (request) => selectMintForPaymentRequest(request),
+      token: (token) => token.mintUrl,
+    );
   }
 
   WalletState copyWith({ParseInputResult? inputResult, Mint? currentMint, List<Mint>? mints}) {

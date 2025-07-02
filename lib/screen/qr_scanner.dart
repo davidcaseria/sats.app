@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sats_app/bloc/wallet.dart';
+import 'package:sats_app/screen/components.dart';
 
 class QrScannerScreen extends StatelessWidget {
   static Route<ParseInputResult> route() {
@@ -44,11 +46,31 @@ class _QrScannerScreen extends StatelessWidget {
         ],
       ),
       body: BlocListener<_QrScannerCubit, _QrScannerState>(
-        listener: (context, state) {
-          if (state.error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
-          } else if (state.result != null) {
-            Navigator.of(context).pop(state.result);
+        listenWhen: (previous, current) => previous.result != current.result,
+        listener: (context, state) async {
+          if (state.result != null) {
+            final cubit = context.read<_QrScannerCubit>();
+            final navigator = Navigator.of(context);
+            final walletCubit = context.read<WalletCubit>();
+            if (walletCubit.state.isTrustedMintInput(state.result!)) {
+              navigator.pop(state.result);
+            } else {
+              final mintUrl = walletCubit.state.selectMintForInput(state.result!);
+              if (mintUrl == null) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('No mint URL found in QR code')));
+                cubit.clear();
+                return;
+              }
+              final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
+              if (isTrusted == true) {
+                await walletCubit.loadWallet(mintUrl: mintUrl, switchMint: false);
+                navigator.pop(state.result);
+              } else {
+                cubit.clear();
+              }
+            }
           }
         },
         child: const _QrCodeScanner(),
@@ -85,7 +107,15 @@ class _QrCodeScannerState extends State<_QrCodeScanner> with WidgetsBindingObser
 class _QrScannerCubit extends Cubit<_QrScannerState> {
   _QrScannerCubit() : super(_QrScannerState());
 
+  void clear() {
+    emit(_QrScannerState());
+  }
+
   void parseQrInput(String input) {
+    if (state.result != null) {
+      return;
+    }
+
     try {
       final result = parseInput(input: input);
       emit(_QrScannerState(result: result));

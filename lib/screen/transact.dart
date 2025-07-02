@@ -12,15 +12,18 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/config.dart';
+import 'package:sats_app/screen/components.dart';
 import 'package:sats_app/screen/qr_scanner.dart';
 import 'package:sats_app/storage.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'package:searchable_listview/searchable_listview.dart';
 
+typedef SwitchWalletCallback = Future<void> Function(String mintUrl);
+
 class TransactScreen extends StatelessWidget {
   final Wallet wallet;
-  final Function(String mintUrl) switchWallet;
+  final SwitchWalletCallback switchWallet;
 
   const TransactScreen({super.key, required this.wallet, required this.switchWallet});
 
@@ -34,7 +37,7 @@ class TransactScreen extends StatelessWidget {
 }
 
 class _TransactScreen extends StatelessWidget {
-  final Function(String) switchWallet;
+  final SwitchWalletCallback switchWallet;
 
   const _TransactScreen({required this.switchWallet});
 
@@ -58,34 +61,23 @@ class _TransactScreen extends StatelessWidget {
     return MultiBlocListener(
       listeners: [
         BlocListener<WalletCubit, WalletState>(
-          listenWhen: (previous, current) => previous.inputResult != current.inputResult,
-          listener: (context, state) {
+          listener: (context, state) async {
+            safePrint("WalletCubit inputResult changed: ${state.inputResult}");
             if (state.inputResult != null) {
-              switchForPaymentRequest(PaymentRequest request) =>
-                  (request.mints == null || request.mints!.isEmpty || request.mints!.contains(state.currentMintUrl))
-                  ? null
-                  : request.mints!.firstWhere((mintUrl) => state.hasMint(mintUrl), orElse: () => request.mints!.first);
-              final switchWalletMintUrl = state.inputResult!.when(
-                bitcoinAddress: (address) => (address.cashu != null) ? switchForPaymentRequest(address.cashu!) : null,
-                bolt11Invoice: (invoice) => null,
-                paymentRequest: switchForPaymentRequest,
-                token: (token) => (token.mintUrl != state.currentMintUrl) ? token.mintUrl : null,
-              );
-              if (switchWalletMintUrl != null) {
-                if (!state.hasMint(switchWalletMintUrl)) {
-                  final cubit = context.read<WalletCubit>();
-                  showDialog(
-                    context: context,
-                    builder: (context) => _TrustNewMintDialog(mintUrl: switchWalletMintUrl),
-                  ).then((result) {
-                    if (result) {
-                      switchWallet(switchWalletMintUrl);
-                    } else {
-                      cubit.clearInput();
-                    }
-                  });
+              final mintUrl = state.selectMintForInput(state.inputResult!);
+              final walletCubit = context.read<WalletCubit>();
+              if (mintUrl != null && mintUrl != state.currentMintUrl) {
+                safePrint("Switching wallet for mint URL: $mintUrl");
+                if (!state.hasMint(mintUrl)) {
+                  final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
+                  safePrint("Trust new mint dialog result: $isTrusted");
+                  if (isTrusted == true) {
+                    await switchWallet(mintUrl);
+                  } else {
+                    walletCubit.clearInput();
+                  }
                 } else {
-                  switchWallet(switchWalletMintUrl);
+                  await switchWallet(mintUrl);
                 }
               } else {
                 context.read<_TransactCubit>().handleInput(state.inputResult!);
@@ -109,102 +101,9 @@ class _TransactScreen extends StatelessWidget {
           SizedBox(height: 90, child: _RequestDisplay()),
           Expanded(flex: 2, child: _AmountDisplay()),
           Expanded(flex: 4, child: _NumberPad()),
-          _ActionButtonsRow(),
+          _ActionButtonsRow(switchWallet: switchWallet),
         ],
       ),
-    );
-  }
-}
-
-class _TrustNewMintDialog extends StatelessWidget {
-  final String mintUrl;
-
-  const _TrustNewMintDialog({required this.mintUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-    return FutureBuilder<MintInfo?>(
-      future: getMintInfo(mintUrl: mintUrl),
-      builder: (context, snapshot) {
-        final mintInfo = snapshot.data;
-        final loading = snapshot.connectionState == ConnectionState.waiting;
-        final error = snapshot.hasError;
-
-        final content = loading
-            ? Center(child: CircularProgressIndicator())
-            : (mintInfo != null)
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Do you want to trust the new mint at:'),
-                  SizedBox(height: 8),
-                  Text(mintUrl, style: TextStyle(fontFamily: 'monospace')),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      if ((mintInfo.iconUrl ?? '').isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Image.network(
-                            mintInfo.iconUrl ?? '',
-                            width: 32,
-                            height: 32,
-                            errorBuilder: (context, error, stackTrace) => Icon(Icons.account_balance),
-                          ),
-                        ),
-                      Expanded(
-                        child: Text(
-                          mintInfo.name ?? 'Unknown Mint',
-                          style: Theme.of(context).textTheme.titleMedium,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if ((mintInfo.description ?? '').isNotEmpty) ...[
-                    SizedBox(height: 8),
-                    Text(mintInfo.description!, style: Theme.of(context).textTheme.bodyMedium),
-                  ],
-                ],
-              )
-            : error
-            ? Text('Failed to load mint info. Trust this mint?')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Do you want to trust the new mint at:'),
-                  SizedBox(height: 8),
-                  Text(mintUrl, style: TextStyle(fontFamily: 'monospace')),
-                ],
-              );
-
-        if (isIOS) {
-          return CupertinoAlertDialog(
-            title: Text('Trust New Mint'),
-            content: content,
-            actions: [
-              CupertinoDialogAction(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-              CupertinoDialogAction(
-                isDefaultAction: true,
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text('Trust'),
-              ),
-            ],
-          );
-        } else {
-          return AlertDialog(
-            title: Text('Trust New Mint'),
-            content: content,
-            actions: [
-              TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-              ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Trust')),
-            ],
-          );
-        }
-      },
     );
   }
 }
@@ -364,6 +263,10 @@ class _BackspaceButton extends StatelessWidget {
 }
 
 class _ActionButtonsRow extends StatelessWidget {
+  final SwitchWalletCallback switchWallet;
+
+  const _ActionButtonsRow({required this.switchWallet});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
