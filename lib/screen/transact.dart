@@ -1112,6 +1112,12 @@ class _TransactCubit extends Cubit<_TransactState> {
 
   void request({String? memo}) async {
     emit(state.copyWith(actionState: _ActionState.inProgress));
+    final storage = AppStorage();
+    final seed = await storage.getSeed();
+    Nut10SecretRequest? nut10;
+    if (seed != null) {
+      nut10 = Nut10SecretRequest.p2Pk(publicKey: getPubKey(secret: seed));
+    }
     final id = Uuid().v4();
     final paymentRequest = PaymentRequest(
       paymentId: id,
@@ -1121,6 +1127,7 @@ class _TransactCubit extends Cubit<_TransactState> {
       singleUse: true,
       description: state.memo,
       transports: [Transport(type: TransportType.httpPost, target: 'https://pay.satsapp.link/$id')],
+      nut10: nut10,
     );
 
     switch (state.method) {
