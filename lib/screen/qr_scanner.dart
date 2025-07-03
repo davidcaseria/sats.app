@@ -48,38 +48,46 @@ class _QrScannerScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: BlocListener<_QrScannerCubit, _QrScannerState>(
-        listenWhen: (previous, current) => previous.result != current.result,
-        listener: (context, state) async {
-          if (state.result != null) {
-            final cubit = context.read<_QrScannerCubit>();
-            final navigator = Navigator.of(context);
-            final walletCubit = context.read<WalletCubit>();
-            final walletState = walletCubit.state;
-            final mintUrl = walletState.selectMintForInput(state.result!);
-            if (walletState.mintUrls.contains(mintUrl)) {
-              await walletCubit.handleInput(state.result!, mintUrl: mintUrl);
-              navigator.pop(state.result);
-            } else {
-              final mintUrl = walletCubit.state.selectMintForInput(state.result!);
-              if (mintUrl == null) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('No mint URL found in QR code')));
-                cubit.clear();
-                return;
-              }
-              final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
-              if (isTrusted == true) {
-                safePrint('QR Scanner: Trusted mint found: $mintUrl');
+      body: MultiBlocListener(
+        listeners: [
+          BlocListener<_QrScannerCubit, _QrScannerState>(
+            listenWhen: (previous, current) => previous.result != current.result && current.result != null,
+            listener: (context, state) async {
+              final cubit = context.read<_QrScannerCubit>();
+              final navigator = Navigator.of(context);
+              final walletCubit = context.read<WalletCubit>();
+              final walletState = walletCubit.state;
+              final mintUrl = walletState.selectMintForInput(state.result!);
+              if (walletState.mintUrls.contains(mintUrl)) {
                 await walletCubit.handleInput(state.result!, mintUrl: mintUrl);
                 navigator.pop(state.result);
               } else {
-                cubit.clear();
+                final mintUrl = walletCubit.state.selectMintForInput(state.result!);
+                if (mintUrl == null) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('No mint URL found in QR code')));
+                  cubit.clear();
+                  return;
+                }
+                final isTrusted = await TrustNewMintDialog.show(context, mintUrl);
+                if (isTrusted == true) {
+                  safePrint('QR Scanner: Trusted mint found: $mintUrl');
+                  await walletCubit.handleInput(state.result!, mintUrl: mintUrl);
+                  navigator.pop(state.result);
+                } else {
+                  cubit.clear();
+                }
               }
-            }
-          }
-        },
+            },
+          ),
+          BlocListener<_QrScannerCubit, _QrScannerState>(
+            listenWhen: (previous, current) => previous.error != current.error && current.error != null,
+            listener: (context, state) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+            },
+          ),
+        ],
         child: const _QrCodeScanner(),
       ),
     );
@@ -108,7 +116,22 @@ class _QrCodeScannerState extends State<_QrCodeScanner> with WidgetsBindingObser
 
   @override
   Widget build(BuildContext context) {
-    return MobileScanner(onDetect: _handleScan);
+    return BlocBuilder<_QrScannerCubit, _QrScannerState>(
+      builder: (context, state) {
+        return Stack(
+          children: [
+            MobileScanner(onDetect: _handleScan),
+            if (state.isAnimated)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.25),
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 
