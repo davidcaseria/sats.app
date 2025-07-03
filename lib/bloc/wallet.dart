@@ -89,8 +89,12 @@ class WalletCubit extends Cubit<WalletState> {
 
   Future<Wallet> _loadWallet({required String mintUrl, required String seed}) async {
     final wallet = Wallet.newFromHexSeed(seed: seed, mintUrl: mintUrl, unit: 'sat', db: db);
-    await wallet.reclaimReserved();
-    await wallet.checkAllMintQuotes();
+    try {
+      await wallet.reclaimReserved();
+      await wallet.checkAllMintQuotes();
+    } catch (e) {
+      safePrint('Error loading wallet: $e');
+    }
     return wallet;
   }
 }

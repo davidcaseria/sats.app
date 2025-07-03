@@ -366,11 +366,36 @@ class _DepositSheetState extends State<_DepositSheet> {
   }
 }
 
-class _DepositSheetAmountInput extends StatelessWidget {
-  final TextEditingController _controller = TextEditingController();
+class _DepositSheetAmountInput extends StatefulWidget {
   final Function(BigInt?) onAmountSubmitted;
 
-  _DepositSheetAmountInput({required this.onAmountSubmitted});
+  const _DepositSheetAmountInput({required this.onAmountSubmitted});
+
+  @override
+  State<_DepositSheetAmountInput> createState() => _DepositSheetAmountInputState();
+}
+
+class _DepositSheetAmountInputState extends State<_DepositSheetAmountInput> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Request focus after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -378,23 +403,22 @@ class _DepositSheetAmountInput extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 8),
           Text('Enter Deposit Amount', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
           TextField(
             controller: _controller,
+            focusNode: _focusNode,
             decoration: InputDecoration(labelText: 'Amount', suffixText: 'sat', border: OutlineInputBorder()),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly, _ThousandsSeparatorInputFormatter()],
           ),
-          Spacer(),
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: CupertinoButton.filled(
               onPressed: () {
-                onAmountSubmitted(BigInt.tryParse(_controller.text.replaceAll(',', '')));
+                widget.onAmountSubmitted(BigInt.tryParse(_controller.text.replaceAll(',', '')));
               },
               child: Text('Generate Deposit Request'),
             ),
@@ -443,16 +467,33 @@ class _DepositSheetMintQuote extends StatelessWidget {
         }
 
         final isPaid = quote.state == MintQuoteState.paid || quote.state == MintQuoteState.issued;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final qrSize = screenWidth * 0.6;
+
         return Padding(
-          padding: EdgeInsetsGeometry.fromLTRB(16, 0, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(height: 8),
-              Text('Deposit Request', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-              SizedBox(height: 8),
-              QrImageView(data: quote.request, size: 250),
-              SizedBox(height: 16),
+              // Icon in circle container
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primary),
+                child: Icon(Icons.add_circle, color: Colors.white, size: 32),
+              ),
+              Spacer(),
+              // Headline text
+              Text(
+                'Deposit ${amount.toString()} sat.',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              Spacer(flex: 2),
+              // QR code
+              QrImageView(data: quote.request, size: qrSize),
+              // Status row
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -461,7 +502,7 @@ class _DepositSheetMintQuote extends StatelessWidget {
                     color: isPaid ? Theme.of(context).colorScheme.tertiary : Colors.grey,
                     size: 20,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Text(
                     isPaid ? 'Deposit Paid' : 'Deposit Pending',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -472,15 +513,39 @@ class _DepositSheetMintQuote extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: 24),
-              SelectableText(quote.request, style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
-              SizedBox(height: 8),
-              TextButton.icon(
-                icon: Icon(Icons.copy, size: 18),
-                label: Text('Copy Request'),
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: quote.request));
-                },
+              Spacer(flex: 2),
+              // Read-only selectable text field with monospace font
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  quote.request,
+                  style:
+                      Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFamily: 'monospace',
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ) ??
+                      const TextStyle(fontFamily: 'monospace'),
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  enableInteractiveSelection: true,
+                ),
+              ),
+              Spacer(),
+              // Copy button at the bottom
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy Request'),
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: quote.request));
+                  },
+                ),
               ),
             ],
           ),

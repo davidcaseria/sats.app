@@ -1,6 +1,7 @@
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class TrustNewMintDialog extends StatelessWidget {
   final String mintUrl;
@@ -107,4 +108,8 @@ class TrustNewMintDialog extends StatelessWidget {
       },
     );
   }
+}
+
+String formatAmount(BigInt amount, {String unit = 'sat'}) {
+  return '${NumberFormat('#,##0').format(amount.toInt())} $unit';
 }

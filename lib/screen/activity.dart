@@ -5,10 +5,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
-import 'package:intl/intl.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/config.dart';
+import 'package:sats_app/screen/components.dart';
 import 'package:sats_app/storage.dart';
 
 class ActivityScreen extends StatelessWidget {
@@ -44,11 +44,40 @@ class _ActivityScreen extends StatelessWidget {
         }
         return CustomScrollView(
           slivers: [
+            if (state.mintQuotes.isNotEmpty) _MintQuotesListView(state.mintQuotes),
             if (state.paymentRequests.isNotEmpty) _PaymentRequestsListView(state.paymentRequests),
             _TransactionsListView(state.transactions),
           ],
         );
       },
+    );
+  }
+}
+
+class _MintQuotesListView extends StatelessWidget {
+  final List<MintQuote> mintQuotes;
+
+  const _MintQuotesListView(this.mintQuotes);
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverStickyHeader(
+      header: _ListViewHeader(label: 'Mint Quotes'),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final quote = mintQuotes[index];
+          return ListTile(
+            leading: _CircleAvatar(
+              direction: TransactionDirection.incoming,
+              isPending: quote.state == MintQuoteState.paid,
+              radius: 24.0,
+              backupIcon: Icon(Icons.add_circle),
+            ),
+            title: Text('Expires in ${_humanizeTimestamp(quote.expiry!)}'),
+            subtitle: Text('Amount: ${formatAmount(quote.amount)}', style: Theme.of(context).textTheme.bodyMedium),
+          );
+        }, childCount: mintQuotes.length),
+      ),
     );
   }
 }
@@ -91,7 +120,7 @@ class _PaymentRequestsListView extends StatelessWidget {
                       ? 'Request to ${request.data.payerUser?.username}'
                       : 'Request Link'),
             ),
-            trailing: Text('${req.amount} sat', style: Theme.of(context).textTheme.bodyMedium),
+            trailing: Text(formatAmount(req.amount!), style: Theme.of(context).textTheme.bodyMedium),
             onTap: (request.isPayer && request.data.token == null)
                 ? () {
                     _showPaymentRequestSheet(context, request.data);
@@ -125,7 +154,7 @@ class _PaymentRequestSheet extends StatelessWidget {
               ),
               SizedBox(height: 16),
               Text(
-                'Pay $username ${state.formattedTotalSatAmount()} sat',
+                'Pay $username ${state.formattedTotalSatAmount()}',
                 style: theme.textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
@@ -142,8 +171,9 @@ class _PaymentRequestSheet extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    final navigator = Navigator.of(context);
                     await context.read<_ActivityCubit>().sendPayRequest();
-                    Navigator.of(context).pop();
+                    navigator.pop();
                   },
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size(double.infinity, 50),
@@ -189,7 +219,7 @@ class _TransactionsListView extends StatelessWidget {
                         ((transaction.direction == TransactionDirection.incoming) ? 'Received' : 'Sent'),
                   ),
                   subtitle: Text(_humanizeTimestamp(transaction.timestamp)),
-                  trailing: Text('${transaction.amount.toString()} sat', style: Theme.of(context).textTheme.bodyMedium),
+                  trailing: Text(formatAmount(transaction.amount), style: Theme.of(context).textTheme.bodyMedium),
                 );
 
                 if (transaction.status == TransactionStatus.pending &&
@@ -387,7 +417,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
       await wallet.checkPendingTransactions();
-      await _loadTransactionsAndPaymentRequests();
+      await _loadData();
 
       final storage = AppStorage();
       final seed = await storage.getSeed();
@@ -409,7 +439,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
         }
       }
       if (tokenReceived) {
-        await _loadTransactionsAndPaymentRequests();
+        await _loadData();
       }
     } catch (e) {
       safePrint('Error fetching activity data: $e');
@@ -434,10 +464,11 @@ class _ActivityCubit extends Cubit<_ActivityState> {
 
   Future<void> revertTransaction(Transaction transaction) => wallet.revertTransaction(transactionId: transaction.id);
 
-  Future<void> _loadTransactionsAndPaymentRequests() async {
+  Future<void> _loadData() async {
     try {
+      final mintQuotes = await wallet.getActiveMintQuotes();
       final transactions = await wallet.listTransactions();
-      emit(state.copyWith(transactions: transactions, isLoading: false));
+      emit(state.copyWith(mintQuotes: mintQuotes, transactions: transactions, isLoading: false));
 
       final user = await Amplify.Auth.getCurrentUser();
       final paymentRequests = await _api.listAllPaymentRequests();
@@ -456,6 +487,7 @@ class _ActivityCubit extends Cubit<_ActivityState> {
 }
 
 class _ActivityState {
+  final List<MintQuote> mintQuotes;
   final List<_PaymentRequest> paymentRequests;
   final List<Transaction> transactions;
   final bool isLoading;
@@ -464,6 +496,7 @@ class _ActivityState {
   final String? error;
 
   const _ActivityState({
+    this.mintQuotes = const [],
     this.paymentRequests = const [],
     this.transactions = const [],
     this.isLoading = false,
@@ -473,6 +506,7 @@ class _ActivityState {
   });
 
   _ActivityState copyWith({
+    List<MintQuote>? mintQuotes,
     List<_PaymentRequest>? paymentRequests,
     List<Transaction>? transactions,
     bool? isLoading,
@@ -483,6 +517,7 @@ class _ActivityState {
     bool clearError = false,
   }) {
     return _ActivityState(
+      mintQuotes: mintQuotes ?? this.mintQuotes,
       paymentRequests: paymentRequests ?? this.paymentRequests,
       transactions: transactions ?? this.transactions,
       isLoading: isLoading ?? this.isLoading,
@@ -510,17 +545,11 @@ class _ActivityState {
     return satAmount + feeAmount;
   }
 
-  String formattedSatAmount() {
-    return '${NumberFormat('#,##0').format(satAmount.toInt())} sat';
-  }
+  String formattedSatAmount() => formatAmount(satAmount);
 
-  String formattedFeeAmount() {
-    return '${NumberFormat('#,##0').format(feeAmount.toInt())} sat';
-  }
+  String formattedFeeAmount() => formatAmount(feeAmount);
 
-  String formattedTotalSatAmount() {
-    return '${NumberFormat('#,##0').format(totalSatAmount.toInt())} sat';
-  }
+  String formattedTotalSatAmount() => formatAmount(totalSatAmount);
 }
 
 class _PaymentRequest {
@@ -535,18 +564,32 @@ String _humanizeTimestamp(BigInt unixTimestamp) {
   final now = DateTime.now();
   final difference = now.difference(timestamp);
 
-  if (difference.inDays >= 365) {
-    final years = (difference.inDays / 365).floor();
-    return '$years year${years == 1 ? '' : 's'} ago';
-  } else if (difference.inDays >= 30) {
-    final months = (difference.inDays / 30).floor();
-    return '$months month${months == 1 ? '' : 's'} ago';
-  } else if (difference.inDays > 0) {
-    return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-  } else if (difference.inHours > 0) {
-    return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
-  } else if (difference.inMinutes > 0) {
-    return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+  if (difference.inSeconds == 0) {
+    return 'Just now';
+  }
+
+  final isPast = difference.isNegative == false;
+  final absDifference = difference.abs();
+
+  String suffix;
+  if (isPast) {
+    suffix = 'ago';
+  } else {
+    suffix = 'from now';
+  }
+
+  if (absDifference.inDays >= 365) {
+    final years = (absDifference.inDays / 365).floor();
+    return '$years year${years == 1 ? '' : 's'} $suffix';
+  } else if (absDifference.inDays >= 30) {
+    final months = (absDifference.inDays / 30).floor();
+    return '$months month${months == 1 ? '' : 's'} $suffix';
+  } else if (absDifference.inDays > 0) {
+    return '${absDifference.inDays} day${absDifference.inDays == 1 ? '' : 's'} $suffix';
+  } else if (absDifference.inHours > 0) {
+    return '${absDifference.inHours} hour${absDifference.inHours == 1 ? '' : 's'} $suffix';
+  } else if (absDifference.inMinutes > 0) {
+    return '${absDifference.inMinutes} minute${absDifference.inMinutes == 1 ? '' : 's'} $suffix';
   } else {
     return 'Just now';
   }

@@ -7,7 +7,6 @@ import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/bloc/wallet.dart';
@@ -1288,17 +1287,11 @@ class _TransactState {
     return satAmount + feeAmount;
   }
 
-  String formattedSatAmount() {
-    return '${NumberFormat('#,##0').format(satAmount.toInt())} sat';
-  }
+  String formattedSatAmount() => formatAmount(satAmount);
 
-  String formattedFeeAmount() {
-    return '${NumberFormat('#,##0').format(feeAmount.toInt())} sat';
-  }
+  String formattedFeeAmount() => formatAmount(feeAmount);
 
-  String formattedTotalSatAmount() {
-    return '${NumberFormat('#,##0').format(totalSatAmount.toInt())} sat';
-  }
+  String formattedTotalSatAmount() => formatAmount(totalSatAmount);
 
   bool isPayAction() {
     return action == _TransactAction.pay;
