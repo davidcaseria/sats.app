@@ -55,7 +55,10 @@ class _QrScannerScreen extends StatelessWidget {
             final cubit = context.read<_QrScannerCubit>();
             final navigator = Navigator.of(context);
             final walletCubit = context.read<WalletCubit>();
-            if (walletCubit.state.isTrustedMintInput(state.result!)) {
+            final walletState = walletCubit.state;
+            final mintUrl = walletState.selectMintForInput(state.result!);
+            if (walletState.mintUrls.contains(mintUrl)) {
+              await walletCubit.handleInput(state.result!, mintUrl: mintUrl);
               navigator.pop(state.result);
             } else {
               final mintUrl = walletCubit.state.selectMintForInput(state.result!);
@@ -95,11 +98,12 @@ class _QrCodeScannerState extends State<_QrCodeScanner> with WidgetsBindingObser
     if (capture.barcodes.isEmpty) {
       return;
     }
-    final barcode = capture.barcodes.first;
-    if (barcode.format != BarcodeFormat.qrCode || barcode.rawValue == null) {
-      return;
+    for (final barcode in capture.barcodes) {
+      if (barcode.format != BarcodeFormat.qrCode || barcode.rawValue == null) {
+        return;
+      }
+      context.read<_QrScannerCubit>().parseQrInput(barcode.rawValue!);
     }
-    context.read<_QrScannerCubit>().parseQrInput(barcode.rawValue!);
   }
 
   @override
@@ -117,21 +121,59 @@ class _QrScannerCubit extends Cubit<_QrScannerState> {
 
   void parseQrInput(String input) {
     if (state.result != null) {
+      safePrint('QR Scanner: Already has result, ignoring further input');
       return;
     }
 
-    try {
-      final result = parseInput(input: input);
-      emit(_QrScannerState(result: result));
-    } catch (e) {
+    if (state.isAnimated) {
+      if (state.tokenDecoder.isComplete()) {
+        return; // Already complete, ignore further input
+      }
+
       try {
-        state.tokenDecoder.receive(part_: input);
-        if (state.tokenDecoder.isComplete()) {
-          final result = ParseInputResult.token(state.tokenDecoder.value()!);
-          emit(_QrScannerState(result: result));
-        }
+        safePrint('QR Scanner: Receiving part of animated input: $input');
+        state.tokenDecoder.receive(input: input);
       } catch (e) {
-        emit(_QrScannerState(error: 'Failed to parse QR code'));
+        safePrint('QR Scanner: Error receiving part of animated input: $e');
+        return;
+      }
+
+      if (state.tokenDecoder.isComplete()) {
+        safePrint('QR Scanner: Animated input is complete, processing token');
+        try {
+          final token = state.tokenDecoder.value();
+          if (token == null) {
+            safePrint('QR Scanner: Token is null, emitting error');
+            emit(state.copyWith(error: 'Invalid token received'));
+          } else {
+            safePrint('QR Scanner: Emitting token');
+            emit(state.copyWith(result: ParseInputResult.token(token)));
+          }
+        } catch (e) {
+          safePrint('QR Scanner: Error processing animated input: $e');
+          emit(state.copyWith(error: 'Error processing animated input'));
+        }
+      }
+    } else {
+      if (input.startsWith('ur:')) {
+        safePrint('QR Scanner: Input starts with "ur:", switching to animated mode');
+        emit(state.copyWith(isAnimated: true));
+        try {
+          safePrint('QR Scanner: Receiving part of animated input: $input');
+          state.tokenDecoder.receive(input: input);
+        } catch (e) {
+          safePrint('QR Scanner: Error receiving part of animated input: $e');
+        }
+      } else {
+        try {
+          safePrint('QR Scanner: Parsing input: $input');
+          final result = parseInput(input: input);
+          safePrint('QR Scanner: Parsed input result: $result');
+          emit(state.copyWith(result: result));
+        } catch (e) {
+          safePrint('QR Scanner: Error parsing input: $e');
+          emit(state.copyWith(error: 'Invalid input format'));
+        }
       }
     }
   }
@@ -139,8 +181,17 @@ class _QrScannerCubit extends Cubit<_QrScannerState> {
 
 class _QrScannerState {
   final TokenDecoder tokenDecoder = TokenDecoder();
-  final ParseInputResult? result;
-  final String? error;
+  bool isAnimated;
+  ParseInputResult? result;
+  String? error;
 
-  _QrScannerState({this.result, this.error});
+  _QrScannerState({this.isAnimated = false, this.result, this.error});
+
+  _QrScannerState copyWith({bool? isAnimated, ParseInputResult? result, String? error}) {
+    return _QrScannerState(
+      isAnimated: isAnimated ?? this.isAnimated,
+      result: result ?? this.result,
+      error: error ?? this.error,
+    );
+  }
 }

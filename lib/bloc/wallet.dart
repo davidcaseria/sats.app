@@ -41,7 +41,7 @@ class WalletCubit extends Cubit<WalletState> {
       safePrint('WalletCubit: Ignoring further input, already has input');
       return; // Already has input, ignore further inputs
     }
-    if (mintUrl != null) {
+    if (mintUrl != null && state.currentMintUrl != mintUrl) {
       await switchMint(mintUrl);
     }
 
@@ -119,16 +119,6 @@ class WalletState {
 
   bool hasMint(String mintUrl) {
     return mints?.any((m) => m.url == mintUrl) ?? false;
-  }
-
-  bool isTrustedMintInput(ParseInputResult input) {
-    isTrustedForPaymentRequest(PaymentRequest request) => false;
-    return input.when(
-      bitcoinAddress: (address) => (address.cashu != null) ? isTrustedForPaymentRequest(address.cashu!) : true,
-      bolt11Invoice: (_) => true,
-      paymentRequest: (request) => isTrustedForPaymentRequest(request),
-      token: (token) => hasMint(token.mintUrl),
-    );
   }
 
   String? selectMintForInput(ParseInputResult input) {
