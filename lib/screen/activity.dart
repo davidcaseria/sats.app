@@ -219,7 +219,10 @@ class _TransactionsListView extends StatelessWidget {
                         ((transaction.direction == TransactionDirection.incoming) ? 'Received' : 'Sent'),
                   ),
                   subtitle: Text(_humanizeTimestamp(transaction.timestamp)),
-                  trailing: Text(formatAmount(transaction.amount), style: Theme.of(context).textTheme.bodyMedium),
+                  trailing: Text(
+                    formatAmount(transaction.amount + transaction.fee),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 );
 
                 if (transaction.status == TransactionStatus.pending &&
