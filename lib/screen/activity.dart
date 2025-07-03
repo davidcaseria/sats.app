@@ -3,6 +3,7 @@ import 'package:api_client/api_client.dart' hide PaymentRequest;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
 import 'package:sats_app/api.dart';
@@ -62,7 +63,7 @@ class _MintQuotesListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverStickyHeader(
-      header: _ListViewHeader(label: 'Mint Quotes'),
+      header: _ListViewHeader(label: 'Deposit Requests'),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
           final quote = mintQuotes[index];
@@ -71,10 +72,17 @@ class _MintQuotesListView extends StatelessWidget {
               direction: TransactionDirection.incoming,
               isPending: quote.state == MintQuoteState.paid,
               radius: 24.0,
-              backupIcon: Icon(Icons.add_circle),
+              backupIcon: Icon(Icons.add),
             ),
-            title: Text('Expires in ${_humanizeTimestamp(quote.expiry!)}'),
-            subtitle: Text('Amount: ${formatAmount(quote.amount)}', style: Theme.of(context).textTheme.bodyMedium),
+            title: Text('Expires ${_humanizeTimestamp(quote.expiry!)}'),
+            subtitle: Text(quote.request, maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: Text(formatAmount(quote.amount), style: Theme.of(context).textTheme.bodyMedium),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: quote.request));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Deposit request copied to clipboard'), duration: Duration(seconds: 2)),
+              );
+            },
           );
         }, childCount: mintQuotes.length),
       ),
