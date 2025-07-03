@@ -1,9 +1,11 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sats_app/api.dart';
 import 'package:sats_app/storage.dart';
 
 class UserCubit extends Cubit<UserState> {
+  final _api = ApiService();
   final _storage = AppStorage();
   UserCubit() : super(UserState());
 
@@ -15,14 +17,12 @@ class UserCubit extends Cubit<UserState> {
     try {
       final result = await Amplify.Auth.fetchAuthSession();
       if (result.isSignedIn) {
-        await fetchUserAttributes();
-        await fetchUserSettings();
+        await fetchAll();
         emit(state.copyWith(status: AuthStatus.authenticated));
       } else if (username != null) {
         final result = await Amplify.Auth.signIn(username: username, password: password);
         if (result.isSignedIn) {
-          await fetchUserAttributes();
-          await fetchUserSettings();
+          await fetchAll();
           emit(state.copyWith(status: AuthStatus.authenticated, action: AuthAction.signIn));
         } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
           emit(state.copyWith(status: AuthStatus.pendingConfirmation, action: AuthAction.signUp, username: username));
@@ -66,8 +66,7 @@ class UserCubit extends Cubit<UserState> {
 
     try {
       if ((await Amplify.Auth.fetchAuthSession()).isSignedIn) {
-        await fetchUserAttributes();
-        await fetchUserSettings();
+        await fetchAll();
         await Amplify.Auth.rememberDevice();
       }
     } catch (e) {
@@ -76,7 +75,13 @@ class UserCubit extends Cubit<UserState> {
     }
   }
 
-  Future<void> fetchUserAttributes() async {
+  Future<void> fetchAll() async {
+    await fetchAttributes();
+    await fetchProfile();
+    await fetchSettings();
+  }
+
+  Future<void> fetchAttributes() async {
     try {
       final attributes = await Amplify.Auth.fetchUserAttributes();
       String? id;
@@ -106,7 +111,17 @@ class UserCubit extends Cubit<UserState> {
     }
   }
 
-  Future<void> fetchUserSettings() async {
+  Future<void> fetchProfile() async {
+    try {
+      final profile = await _api.getUserProfile();
+      emit(state.copyWith(isPublic: profile.isPublic));
+    } catch (e) {
+      safePrint('Error fetching user profile: $e');
+      emit(state.copyWith(error: e.toString()));
+    }
+  }
+
+  Future<void> fetchSettings() async {
     try {
       final isCloudSyncEnabled = await _storage.isCloudSyncEnabled();
       final isDarkMode = await _storage.isDarkMode();
@@ -139,6 +154,16 @@ class UserCubit extends Cubit<UserState> {
   Future<void> setDarkMode(bool isDarkMode) async {
     await _storage.setDarkMode(isDarkMode);
     emit(state.copyWith(isDarkMode: isDarkMode));
+  }
+
+  Future<void> setProfilePublic(bool isPublic) async {
+    emit(state.copyWith(isPublic: isPublic));
+    try {
+      await _api.updateProfile(isPublic: isPublic);
+    } catch (e) {
+      safePrint('Failed to update profile visibility: $e');
+      emit(state.copyWith(error: 'Failed to update profile visibility'));
+    }
   }
 
   Future<void> signUp({required String email, required String username, required String password}) async {
@@ -201,6 +226,7 @@ class UserState {
   String? username;
   bool isCloudSyncEnabled = true;
   bool isDarkMode = false;
+  bool isPublic = false;
   String? error;
 
   UserState({
@@ -211,6 +237,7 @@ class UserState {
     this.username,
     this.isCloudSyncEnabled = true,
     this.isDarkMode = false,
+    this.isPublic = false,
     this.error,
   });
 
@@ -222,6 +249,7 @@ class UserState {
     String? username,
     bool? isCloudSyncEnabled,
     bool? isDarkMode,
+    bool? isPublic,
     String? error,
     bool clearError = false,
   }) {
@@ -233,6 +261,7 @@ class UserState {
       username: username ?? this.username,
       isCloudSyncEnabled: isCloudSyncEnabled ?? this.isCloudSyncEnabled,
       isDarkMode: isDarkMode ?? this.isDarkMode,
+      isPublic: isPublic ?? this.isPublic,
       error: (clearError) ? null : error ?? this.error,
     );
   }

@@ -38,14 +38,15 @@ class SettingsScreen extends StatelessWidget {
                   builder: (context, state) {
                     return GestureDetector(
                       onTap: () async {
+                        final scaffoldMessanger = ScaffoldMessenger.of(context);
                         final picker = ImagePicker();
                         final XFile? image = await picker.pickImage(source: ImageSource.gallery);
                         if (image != null) {
                           final bytes = await image.readAsBytes();
                           try {
-                            await ApiService().uploadProfilePicture(userId: state.id!, imageBytes: bytes);
+                            await ApiService().uploadProfilePicture(imageBytes: bytes);
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            scaffoldMessanger.showSnackBar(
                               SnackBar(
                                 content: Text('Failed to upload profile picture: $e'),
                                 duration: const Duration(seconds: 2),
@@ -109,6 +110,19 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           BlocBuilder<UserCubit, UserState>(
+            buildWhen: (previous, current) => previous.isPublic != current.isPublic,
+            builder: (context, state) {
+              return SwitchListTile(
+                title: const Text('Public Profile'),
+                value: state.isPublic,
+                onChanged: (val) {
+                  context.read<UserCubit>().setProfilePublic(val);
+                },
+                secondary: const Icon(Icons.public),
+              );
+            },
+          ),
+          BlocBuilder<UserCubit, UserState>(
             buildWhen: (previous, current) => previous.isCloudSyncEnabled != current.isCloudSyncEnabled,
             builder: (context, state) {
               return SwitchListTile(
@@ -124,13 +138,13 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 32),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.onTertiary,
-              backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
-              side: BorderSide(color: Theme.of(context).colorScheme.tertiary),
+              foregroundColor: Theme.of(context).colorScheme.onSecondary,
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              side: BorderSide(color: Theme.of(context).colorScheme.secondary),
               minimumSize: const Size.fromHeight(48),
             ),
-            icon: Icon(Icons.key, color: Theme.of(context).colorScheme.tertiary),
-            label: Text('Export Seed', style: TextStyle(color: Theme.of(context).colorScheme.onTertiary)),
+            icon: Icon(Icons.key, color: Theme.of(context).colorScheme.secondary),
+            label: Text('Export Seed', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
             onPressed: () {
               Navigator.of(context).push(_ExportSeedScreen.route());
             },

@@ -81,6 +81,12 @@ class ApiService {
     }
   }
 
+  Future<UserResponse> getUserProfile() async {
+    final userId = await _userId();
+    final response = await _apiClient.getUser(id: userId);
+    return response.data!;
+  }
+
   Future<List<PaymentRequestResponse>> listAllPaymentRequests() async {
     final response = await _apiClient.listPaymentRequests(f: UserPayFilter.all);
     return response.data!.toList();
@@ -110,7 +116,14 @@ class ApiService {
     return response.data!;
   }
 
-  Future<void> uploadProfilePicture({required String userId, required List<int> imageBytes}) async {
+  Future<void> updateProfile({required bool isPublic}) async {
+    final userId = await _userId();
+    final request = UserUpdateRequestBuilder()..isPublic = isPublic;
+    await _apiClient.updateUser(id: userId, userUpdateRequest: request.build());
+  }
+
+  Future<void> uploadProfilePicture({required List<int> imageBytes}) async {
+    final userId = await _userId();
     final request = UploadProfilePictureRequestBuilder()..bytes = ListBuilder<int>(imageBytes);
     await _apiClient.uploadProfilePicture(id: userId, uploadProfilePictureRequest: request.build());
   }
@@ -134,5 +147,13 @@ class ApiService {
       ..encryptedToken = encryptedToken
       ..payeeUserId = payeeUserId;
     await _apiClient.storeToken(id: tokenId, tokenRequest: tokenRequest.build());
+  }
+
+  Future<String> _userId() async {
+    final user = await Amplify.Auth.getCurrentUser();
+    if (user.userId.isEmpty) {
+      throw Exception('User ID is empty, cannot perform operation');
+    }
+    return user.userId;
   }
 }
