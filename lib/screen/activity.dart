@@ -74,9 +74,11 @@ class _MintQuotesListView extends StatelessWidget {
               radius: 24.0,
               backupIcon: Icon(Icons.add),
             ),
-            title: Text('Expires ${_humanizeTimestamp(quote.expiry!)}'),
+            title: (quote.expiry != null) ? Text('Expires ${_humanizeTimestamp(quote.expiry!)}') : Text('Mint Address'),
             subtitle: Text(quote.request, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Text(formatAmount(quote.amount), style: Theme.of(context).textTheme.bodyMedium),
+            trailing: (quote.amount != null)
+                ? Text(formatAmount(quote.amount!), style: Theme.of(context).textTheme.bodyMedium)
+                : null,
             onTap: () {
               Clipboard.setData(ClipboardData(text: quote.request));
               ScaffoldMessenger.of(context).showSnackBar(
