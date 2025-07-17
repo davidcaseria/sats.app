@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/activity.dart';
+import 'package:sats_app/screen/components.dart';
 import 'package:sats_app/screen/onboarding.dart';
 import 'package:sats_app/screen/recovery.dart';
 import 'package:sats_app/screen/settings.dart';
@@ -169,7 +170,7 @@ class _Drawer extends StatelessWidget {
             listViewWidgets.add(
               ListTile(
                 title: Text(mint.info?.name ?? mint.url),
-                subtitle: (mint.balance != null) ? Text('${mint.balance} sat') : null,
+                subtitle: (mint.balance != null) ? Text(formatAmount(mint.balance!)) : null,
                 trailing: (mint.url == state.currentMintUrl || mint.balance == null || mint.balance! > BigInt.zero)
                     ? null
                     : IconButton(
@@ -486,7 +487,7 @@ class _DepositSheetMintQuote extends StatelessWidget {
               Spacer(),
               // Headline text
               Text(
-                'Deposit ${amount.toString()} sat.',
+                'Deposit ${amount.toString()} sat',
                 style: Theme.of(context).textTheme.headlineSmall,
                 textAlign: TextAlign.center,
               ),
