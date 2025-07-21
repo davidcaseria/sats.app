@@ -6,6 +6,7 @@ class AppStorage {
   static const String _darkModeKey = 'darkMode';
   static const String _mintUrlKey = 'mintUrl';
   static const String _seedKey = 'seed';
+  static const String _seedBackedUpKey = 'seedBackedUp';
 
   final _preferences = SharedPreferencesAsync();
   final _storage = const FlutterSecureStorage(
@@ -46,5 +47,13 @@ class AppStorage {
 
   Future<void> setSeed(String seed) async {
     await _storage.write(key: _seedKey, value: seed);
+  }
+
+  Future<bool> isSeedBackedUp() async {
+    return await _preferences.getBool(_seedBackedUpKey) ?? false;
+  }
+
+  Future<void> setSeedBackedUp(bool isBackedUp) async {
+    await _preferences.setBool(_seedBackedUpKey, isBackedUp);
   }
 }

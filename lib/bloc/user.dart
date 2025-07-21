@@ -125,7 +125,12 @@ class UserCubit extends Cubit<UserState> {
     try {
       final isCloudSyncEnabled = await _storage.isCloudSyncEnabled();
       final isDarkMode = await _storage.isDarkMode();
-      emit(state.copyWith(isCloudSyncEnabled: isCloudSyncEnabled, isDarkMode: isDarkMode));
+      final isSeedBackedUp = await _storage.isSeedBackedUp();
+      emit(state.copyWith(
+        isCloudSyncEnabled: isCloudSyncEnabled,
+        isDarkMode: isDarkMode,
+        isSeedBackedUp: isSeedBackedUp,
+      ));
     } catch (e) {
       safePrint('Error fetching user settings: $e');
       emit(state.copyWith(error: e.toString()));
@@ -164,6 +169,11 @@ class UserCubit extends Cubit<UserState> {
       safePrint('Failed to update profile visibility: $e');
       emit(state.copyWith(error: 'Failed to update profile visibility'));
     }
+  }
+
+  Future<void> setSeedBackedUp(bool isBackedUp) async {
+    await _storage.setSeedBackedUp(isBackedUp);
+    emit(state.copyWith(isSeedBackedUp: isBackedUp));
   }
 
   Future<void> signUp({required String email, required String username, required String password}) async {
@@ -227,6 +237,7 @@ class UserState {
   bool isCloudSyncEnabled = true;
   bool isDarkMode = false;
   bool isPublic = false;
+  bool isSeedBackedUp = false;
   String? error;
 
   UserState({
@@ -238,6 +249,7 @@ class UserState {
     this.isCloudSyncEnabled = true,
     this.isDarkMode = false,
     this.isPublic = false,
+    this.isSeedBackedUp = false,
     this.error,
   });
 
@@ -250,6 +262,7 @@ class UserState {
     bool? isCloudSyncEnabled,
     bool? isDarkMode,
     bool? isPublic,
+    bool? isSeedBackedUp,
     String? error,
     bool clearError = false,
   }) {
@@ -262,6 +275,7 @@ class UserState {
       isCloudSyncEnabled: isCloudSyncEnabled ?? this.isCloudSyncEnabled,
       isDarkMode: isDarkMode ?? this.isDarkMode,
       isPublic: isPublic ?? this.isPublic,
+      isSeedBackedUp: isSeedBackedUp ?? this.isSeedBackedUp,
       error: (clearError) ? null : error ?? this.error,
     );
   }

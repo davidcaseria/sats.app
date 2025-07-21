@@ -136,6 +136,34 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           const SizedBox(height: 32),
+          BlocBuilder<UserCubit, UserState>(
+            buildWhen: (previous, current) => previous.isSeedBackedUp != current.isSeedBackedUp,
+            builder: (context, state) {
+              if (!state.isSeedBackedUp) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, color: Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Please backup your seed phrase to secure your wallet.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.onSecondary,
@@ -143,8 +171,8 @@ class SettingsScreen extends StatelessWidget {
               side: BorderSide(color: Theme.of(context).colorScheme.secondary),
               minimumSize: const Size.fromHeight(48),
             ),
-            icon: Icon(Icons.key, color: Theme.of(context).colorScheme.secondary),
-            label: Text('Export Seed', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+            icon: Icon(Icons.file_download, color: Theme.of(context).colorScheme.secondary),
+            label: Text('Backup Seed', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
             onPressed: () {
               Navigator.of(context).push(_ExportSeedScreen.route());
             },
@@ -282,7 +310,12 @@ class _ExportSeedScreenState extends State<_ExportSeedScreen> {
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.save_alt),
                       label: const Text('Save as File', textScaler: TextScaler.linear(1.2)),
-                      onPressed: _shareMnemonic,
+                      onPressed: () async {
+                        await _shareMnemonic();
+                        if (context.mounted) {
+                          context.read<UserCubit>().setSeedBackedUp(true);
+                        }
+                      },
                     ),
                   ),
                 ],

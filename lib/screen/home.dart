@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:sats_app/bloc/user.dart';
 import 'package:sats_app/bloc/wallet.dart';
 import 'package:sats_app/screen/activity.dart';
 import 'package:sats_app/screen/components.dart';
@@ -91,10 +92,31 @@ class _HomeScreenState extends State<HomeScreen> {
               leading: _MenuButton(),
               title: _AppBarTitle(wallet: wallet),
               actions: [
-                IconButton(
-                  icon: Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.push(context, SettingsScreen.route());
+                BlocBuilder<UserCubit, UserState>(
+                  builder: (context, userState) {
+                    return Stack(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.settings),
+                          onPressed: () {
+                            Navigator.push(context, SettingsScreen.route());
+                          },
+                        ),
+                        if (!userState.isSeedBackedUp)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.error,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
                   },
                 ),
               ],
