@@ -1,17 +1,27 @@
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:sats_app/api.dart';
 import 'package:sats_app/storage.dart';
 
 class WalletCubit extends Cubit<WalletState> {
-  final WalletDatabase db;
+  final ApiService _apiService = ApiService();
+  WalletDatabase db;
   WalletCubit(this.db) : super(WalletState()) {
     _init();
   }
 
-  Future<void> _init() async {
+  Future<void> _init({bool useCloudBackup = false}) async {
     emit(state.copyWith(isLoading: true));
+    if (useCloudBackup) {
+      final documentsDir = await getApplicationDocumentsDirectory();
+      await documentsDir.create(recursive: true);
+      final dbPath = path.join(documentsDir.path, 'wallet.sqlite');
+      await _apiService.getBackupDatabase(path: dbPath);
+      db = await WalletDatabase.newInstance(path: dbPath);
+    }
     final storage = AppStorage();
     final mintUrl = await storage.getMintUrl();
     final seed = await storage.getSeed();
@@ -30,7 +40,7 @@ class WalletCubit extends Cubit<WalletState> {
       return;
     }
     final api = ApiService();
-    api.backupDatabase(path: db.path);
+    api.putBackupDatabase(path: db.path);
   }
 
   void clearInput() {
@@ -73,7 +83,7 @@ class WalletCubit extends Cubit<WalletState> {
     final storage = AppStorage();
     storage.setSeed(seed);
     emit(state.copyWith(hasSeed: true, isLoading: true));
-    await _init();
+    await _init(useCloudBackup: true);
   }
 
   Future<void> removeMint(String mintUrl) async {

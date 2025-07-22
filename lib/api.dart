@@ -46,15 +46,6 @@ class ApiService {
 
   DefaultApi get client => _apiClient;
 
-  Future<void> backupDatabase({required String path}) async {
-    final bytes = await File(path).readAsBytes();
-    if (bytes.isEmpty) {
-      throw Exception('Backup file is empty');
-    }
-    final request = PutBackupDbRequestBuilder()..bytes = ListBuilder<int>(bytes);
-    _apiClient.putBackupDb(putBackupDbRequest: request.build());
-  }
-
   Future<Uri> createPayLink({required Token token}) async {
     final id = Uuid().v4();
     final idBytes = Uuid.parse(id);
@@ -91,6 +82,17 @@ class ApiService {
     }
   }
 
+  Future<void> getBackupDatabase({required String path}) async {
+    final response = await _apiClient.getBackupDb();
+    if (response.data == null || response.data!.isEmpty) {
+      throw Exception('Backup database is empty');
+    }
+    final bytes = response.data!.toList();
+    final file = File(path);
+    await file.writeAsBytes(bytes);
+    safePrint('Backup database saved to $path');
+  }
+
   Future<UserResponse> getUserProfile() async {
     final userId = await _userId();
     final response = await _apiClient.getUser(id: userId);
@@ -100,6 +102,15 @@ class ApiService {
   Future<List<PaymentRequestResponse>> listAllPaymentRequests() async {
     final response = await _apiClient.listPaymentRequests(f: UserPayFilter.all);
     return response.data!.toList();
+  }
+
+  Future<void> putBackupDatabase({required String path}) async {
+    final bytes = await File(path).readAsBytes();
+    if (bytes.isEmpty) {
+      throw Exception('Backup file is empty');
+    }
+    final request = PutBackupDbRequestBuilder()..bytes = ListBuilder<int>(bytes);
+    _apiClient.putBackupDb(putBackupDbRequest: request.build());
   }
 
   Future<List<UserResponse>> searchUsers({required String query}) async {
