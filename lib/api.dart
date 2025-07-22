@@ -87,10 +87,18 @@ class ApiService {
     if (response.data == null || response.data!.isEmpty) {
       throw Exception('Backup database is empty');
     }
-    final bytes = response.data!.toList();
+    final encryptedBytes = response.data!.toList();
+
+    // Decrypt the database using the user's seed
+    final seed = await AppStorage().getSeed();
+    if (seed == null) {
+      throw Exception('User seed not found, cannot decrypt backup database');
+    }
+
+    final decryptedBytes = await _decryptDatabase(encryptedBytes, seed);
     final file = File(path);
-    await file.writeAsBytes(bytes);
-    safePrint('Backup database saved to $path');
+    await file.writeAsBytes(decryptedBytes);
+    safePrint('Backup database decrypted and saved to $path');
   }
 
   Future<UserResponse> getUserProfile() async {
@@ -109,7 +117,15 @@ class ApiService {
     if (bytes.isEmpty) {
       throw Exception('Backup file is empty');
     }
-    final request = PutBackupDbRequestBuilder()..bytes = ListBuilder<int>(bytes);
+
+    // Encrypt the database using the user's seed
+    final seed = await AppStorage().getSeed();
+    if (seed == null) {
+      throw Exception('User seed not found, cannot encrypt backup database');
+    }
+
+    final encryptedBytes = await _encryptDatabase(bytes, seed);
+    final request = PutBackupDbRequestBuilder()..bytes = ListBuilder<int>(encryptedBytes);
     _apiClient.putBackupDb(putBackupDbRequest: request.build());
   }
 
@@ -147,6 +163,48 @@ class ApiService {
     final userId = await _userId();
     final request = UploadProfilePictureRequestBuilder()..bytes = ListBuilder<int>(imageBytes);
     await _apiClient.uploadProfilePicture(id: userId, uploadProfilePictureRequest: request.build());
+  }
+
+  Future<List<int>> _encryptDatabase(List<int> data, String seed) async {
+    final algorithm = AesGcm.with128bits();
+    final seedBytes = utf8.encode(seed);
+
+    // Generate random salt
+    final salt = SecretKeyData.random(length: 16).bytes;
+
+    // Use PBKDF2 to derive a key from the seed
+    final pbkdf2 = Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: 100000, bits: 128);
+    final secretKey = await pbkdf2.deriveKey(secretKey: SecretKeyData(seedBytes), nonce: salt);
+
+    final nonce = algorithm.newNonce();
+    final secretBox = await algorithm.encrypt(data, secretKey: secretKey, nonce: nonce);
+
+    // Concatenate salt + nonce + cipherText + mac
+    return salt + nonce + secretBox.cipherText + secretBox.mac.bytes;
+  }
+
+  Future<List<int>> _decryptDatabase(List<int> encryptedData, String seed) async {
+    final algorithm = AesGcm.with128bits();
+    final seedBytes = utf8.encode(seed);
+
+    // Extract salt (16 bytes), nonce (12 bytes), mac (16 bytes), and cipherText (remaining)
+    if (encryptedData.length < 44) {
+      throw Exception('Encrypted data too short');
+    }
+
+    final salt = encryptedData.sublist(0, 16);
+    final nonce = encryptedData.sublist(16, 28);
+    final macBytes = encryptedData.sublist(encryptedData.length - 16);
+    final cipherText = encryptedData.sublist(28, encryptedData.length - 16);
+
+    // Use PBKDF2 to derive the same key from the seed and salt
+    final pbkdf2 = Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: 100000, bits: 128);
+    final secretKey = await pbkdf2.deriveKey(secretKey: SecretKeyData(seedBytes), nonce: salt);
+
+    final secretBox = SecretBox(cipherText, nonce: nonce, mac: Mac(macBytes));
+    final decryptedData = await algorithm.decrypt(secretBox, secretKey: secretKey);
+
+    return decryptedData;
   }
 
   Future<void> _sendToken({
