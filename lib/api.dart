@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
@@ -44,6 +45,15 @@ class ApiService {
   }
 
   DefaultApi get client => _apiClient;
+
+  Future<void> backupDatabase({required String path}) async {
+    final bytes = await File(path).readAsBytes();
+    if (bytes.isEmpty) {
+      throw Exception('Backup file is empty');
+    }
+    final request = PutBackupDbRequestBuilder()..bytes = ListBuilder<int>(bytes);
+    _apiClient.putBackupDb(putBackupDbRequest: request.build());
+  }
 
   Future<Uri> createPayLink({required Token token}) async {
     final id = Uuid().v4();

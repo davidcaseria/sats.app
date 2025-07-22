@@ -114,6 +114,7 @@ class _TransactScreen extends StatelessWidget {
       walletCubit.loadMints();
       await Future.delayed(Duration(milliseconds: 300));
       cubit.clear();
+      walletCubit.backupDatabase();
     });
   }
 }

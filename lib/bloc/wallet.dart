@@ -1,6 +1,7 @@
 import 'package:amplify_flutter/amplify_flutter.dart' hide Token;
 import 'package:cdk_flutter/cdk_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sats_app/api.dart';
 import 'package:sats_app/storage.dart';
 
 class WalletCubit extends Cubit<WalletState> {
@@ -21,6 +22,15 @@ class WalletCubit extends Cubit<WalletState> {
     }
     await loadMints();
     emit(state.copyWith(isLoading: false));
+  }
+
+  void backupDatabase() async {
+    final storage = AppStorage();
+    if (!await storage.isCloudSyncEnabled()) {
+      return;
+    }
+    final api = ApiService();
+    api.backupDatabase(path: db.path);
   }
 
   void clearInput() {
